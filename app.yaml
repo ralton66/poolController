@@ -1,0 +1,10 @@
+name: pool
+description: ""
+ports: []
+bricks:
+- arduino:arduino_cloud:
+    variables:
+      ARDUINO_DEVICE_ID: 71652931-b768-4fbc-aac5-f4242c3c1a9b
+      ARDUINO_SECRET: hQHjutOlHOFXmDAscUS1!7e1v
+- arduino:web_ui: {}
+icon: 😀

@@ -1,0 +1,32 @@
+# ignore app cache folder
+# === Python Files ===
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env/
+.cache/
+
+# === Arduino / PlatformIO Files ===
+# Local build directories
+build/
+bin/
+.pio/
+.pioenvs/
+
+# Core dump / temporary files
+*.o
+*.d
+*.elf
+*.hex
+
+# === VS Code Settings ===
+.vscode/
+*.code-workspace
+
+# === System Files ===
+.DS_Store
+Thumbs.db
+protocol.log

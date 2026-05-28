@@ -1,0 +1,103 @@
+<!--
+SPDX-FileCopyrightText: Copyright (C) ARDUINO SRL (http://www.arduino.cc)
+
+SPDX-License-Identifier: MPL-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoolController</title>
+    <link rel="icon" type="image/png" href="./img/favicon.png">
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div class="page">
+        <header class="header">
+            <h1 class="arduino-text">PoolController</h1>
+            <img class="arduino-logo" src="./img/RGB-Arduino-Logo_Color Inline Loop.svg" alt="Arduino Logo">
+        </header>
+
+        <section class="status-bar" id="connection-bar">
+            <span id="connection-text">Connecting…</span>
+            <span id="mode-badge" class="badge badge-off">OFF</span>
+        </section>
+
+        <main class="dashboard">
+            <section class="card readings">
+                <h2>Temperatures</h2>
+                <div class="grid">
+                    <div class="metric">
+                        <span class="label">Air</span>
+                        <span class="value" id="air-temp">—</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Pool</span>
+                        <span class="value" id="pool-temp">—</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Spa</span>
+                        <span class="value" id="spa-temp">—</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Pool set</span>
+                        <span class="value" id="pool-set">—</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Spa set</span>
+                        <span class="value" id="spa-set">—</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card equipment">
+                <h2>Equipment</h2>
+                <ul class="equip-list">
+                    <li>Filter pump: <strong id="filter-state">—</strong></li>
+                    <li>Aux / jets: <strong id="aux-state">—</strong></li>
+                    <li>Heater: <strong id="heater-state">—</strong></li>
+                    <li>Valve: <strong id="valve-state">—</strong></li>
+                    <li>Pool light: <strong id="pool-light-state">—</strong></li>
+                    <li>Spa light: <strong id="spa-light-state">—</strong></li>
+                    <li>SWG: <strong id="swg-state">—</strong></li>
+                </ul>
+            </section>
+
+            <section class="card controls">
+                <h2>Controls</h2>
+                <div class="control-row">
+                    <label for="spa-temp-input">Spa temperature (°F)</label>
+                    <input type="number" id="spa-temp-input" min="80" max="104" value="102">
+                    <button type="button" id="spa-on-btn">Spa on</button>
+                </div>
+                <div class="control-row">
+                    <label for="filter-rpm-input">Filter RPM</label>
+                    <input type="number" id="filter-rpm-input" min="0" max="3450" value="1200" step="50">
+                    <button type="button" id="filter-on-btn">Pool filter</button>
+                </div>
+                <div class="control-row buttons">
+                    <button type="button" id="lights-on-btn">Lights on</button>
+                    <button type="button" id="lights-off-btn">Lights off</button>
+                    <button type="button" id="all-off-btn" class="danger">All off</button>
+                </div>
+            </section>
+
+            <section class="card debug-panel" id="debug-panel" style="display: none;">
+                <h2>Protocol debug</h2>
+                <textarea id="protocolOutput" rows="8" readonly></textarea>
+                <div class="control-row buttons">
+                    <button type="button" id="inject-button">Inject test RX</button>
+                    <button type="button" id="send-tx-button">Send status poll</button>
+                </div>
+            </section>
+        </main>
+
+        <div id="error-container" class="error-message" style="display: none;"></div>
+    </div>
+
+    <script src="libs/socket.io.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
