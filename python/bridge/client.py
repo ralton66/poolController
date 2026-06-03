@@ -47,7 +47,7 @@ class BridgeClient:
 
     def log_rx_payload(self, hex_payload: str) -> None:
         print("Log")
-        csv_line = parse_packet(hex_payload)
+        csv_line = pda_parse(hex_payload)
         #if hex_payload[:4] in {"0012", "001F", "0020"}:
         #    print("???")
         #elif hex_payload[:2] in {"60", "00"}:
@@ -79,7 +79,7 @@ def get_client() -> BridgeClient:
         _client = BridgeClient()
     return _client
 
-def parse_packet(hex_str):
+def pda_parse(hex_str):
     # Ensure the string is uppercase and stripped of whitespace
     hex_str = hex_str.strip().upper()
     
@@ -156,7 +156,7 @@ def parse_packet(hex_str):
                 elif data_bytes[0] == 0x41:
                     interpreted_data = "Scr Redraw"
                 elif data_bytes[0] == 0x66:
-                    interpreted_data = "Matrix Grid Sync"   # <-- Added for 0x66
+                    interpreted_data = "Matrix Grid Sync"   
                 elif data_bytes[0] == 0xBC:
                     interpreted_data = "Hold"
                 elif data_bytes[0] == 0xC0:
@@ -168,16 +168,16 @@ def parse_packet(hex_str):
                     
                     if len(data_bytes) > 1:
                         sub_key = data_bytes[1]
-                        key_text = key_mapping.get(sub_key, f"Unknown Key ({sub_key:02X})")
+                        key_text = key_mapping.get(sub_key, f"Unknown Key (0x{sub_key:02X})")
                     else:
                         key_text = "Missing Key Byte"
                         
                     interpreted_data = f"KEY: {key_text}"
                 else:
-                    interpreted_data = f"{data_bytes.hex().upper()}"
+                    interpreted_data = f"0x{data_bytes.hex().upper()}"
 
     # 5. Build and return the comma-separated string
     # Format: Dir, Dest, Parsed Command, Sub/Line, Interpreted Data Payload, Checksum
-    csv_row = f"{direction},{dest_name},{parsed_cmd},{sub_line},{interpreted_data},{checksum_status}"
+    csv_row = f"{direction},{dest_name},{parsed_cmd},{sub_line},{interpreted_data},{checksum_status},{hex_str}"
 
     return csv_row
