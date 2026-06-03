@@ -299,7 +299,7 @@ void loop() {
         if (packetReady) {
 
           
-          if (packetBuffer[0] == 0x60) {
+          if (packetBuffer[0] == 0x90) {
                         
             delay(2);
             sendJandyResponse(PKT_PDA_KA, sizeof(PKT_PDA_ACK));
