@@ -12,6 +12,7 @@ from bridge.client import BridgeClient
 from model.pool_state import PoolState
 from protocol.jandy_frame import decode_payload, hex_to_bytes
 from protocol.pda_messages import parse_packet
+from services.controller import PoolController
 
 
 class PoolMonitor:
@@ -19,10 +20,13 @@ class PoolMonitor:
         self,
         state: PoolState,
         bridge: BridgeClient,
+        pc: PoolController,
         on_update: Callable[[PoolState], None] | None = None,
+         
     ):
         self.state = state
         self.bridge = bridge
+        self.pc = pc
         self._on_update = on_update
         self._lock = threading.Lock()
 
@@ -31,6 +35,7 @@ class PoolMonitor:
             self.bridge.log_rx_payload(hex_payload)
             frame = decode_payload(hex_to_bytes(hex_payload))
             parsed = parse_packet(frame)
+            self.check_queue()
             with self._lock:
                 self.state.apply_parsed(parsed, hex_payload)
                 self.state.last_error = None
@@ -41,6 +46,18 @@ class PoolMonitor:
                 self.state.last_packet = {"error": str(e), "hex": hex_payload}
             self._notify()
 
+    def check_queue(self) -> None:
+        try:
+            # No 'if self.pc is not None:' needed anymore!
+            cmd = self.pc._queue.get_nowait()
+            print("cmd from queue:", cmd)
+            
+            # ... run state machine ...
+            self.pc._queue.task_done()
+            
+        except queue.Empty:
+            pass
+        
     def get_snapshot(self) -> dict:
         with self._lock:
             return self.state.to_dict()
@@ -51,12 +68,6 @@ class PoolMonitor:
 
 
 """
-
-#class PDAState(Enum):
-#    IDLE = auto()
-#    NAVIGATING_LAYERS = auto()     # Unified state to handle get line -> navigate -> select loops
-#    CONFIRM_PUMP = auto()          # Wait for "FILTER PUMP ON" confirmation
-#    STATE_RESET = auto()           # Timeout recovery: Send BACK multiple times
 
 class JandyPDAStateMachine:
     def __init__(self, menu_sequence: list, timeout_limit: int = 10, reset_clicks: int = 4):

@@ -50,6 +50,7 @@ class PoolController:
         #target_sequence = [9, 0] 
         #pda = JandyPDAStateMachine(menu_sequence=target_sequence, timeout_limit=5, reset_clicks=3)
         #response = pda.process_packet(p_type, payload)
+        print("PoolController: pool_filter called with rpm:", rpm, "preset:", preset)
         self.enqueue(
             Command(type=CommandType.POOL_FILTER, rpm=rpm, preset=preset)
         )
@@ -72,7 +73,8 @@ class PoolController:
     def _worker(self) -> None:
         while self._running:
             try:
-                cmd = self._queue.get(timeout=0.5)
+                cmd = None #self._queue.get(timeout=0.5)
+                print("Cmd rx'ed")
             except queue.Empty:
                 continue
             if cmd is None:

@@ -44,8 +44,9 @@ def on_state_updated(_state: PoolState):
     broadcast_state()
 
 
-monitor = PoolMonitor(pool_state, bridge, on_update=on_state_updated)
 controller = PoolController(bridge, pool_state, on_tx=lambda h: ui.send_message("protocol_tx", {"hex": h}))
+
+monitor = PoolMonitor(pool_state, bridge, controller, on_update=on_state_updated)
 cloud_sync = CloudSync(pool_state, controller, on_state_push=lambda _: broadcast_state())
 
 
@@ -56,7 +57,7 @@ def on_pda_packet(hex_payload: str):
 
 
 def on_get_state(client, data):
-    print("SU")
+    print("main: on_get_state")
     ui.send_message("state_update", monitor.get_snapshot(), client)
    
 

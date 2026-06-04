@@ -45,13 +45,13 @@ def bytes_to_hex(data: bytes) -> str:
 def encode_wire(dest: int, cmd: int, data: bytes = b"") -> bytes:
     """Build full on-wire frame including DLE/STX/ETX and escapes."""
     body = bytes([dest & 0xFF, cmd & 0xFF]) + data
-    body_ck = body + bytes([checksum8(body)])
     out = bytearray([DLE, STX])
-    for b in body_ck:
+    for b in body:
         out.append(b)
         if b == DLE:
             out.append(DLE)
-    out.extend([DLE, ETX])
+    body_ck = bytes([checksum8(out)])
+    out.extend([body_ck, DLE, ETX])
     return bytes(out)
 
 def encode_payload(dest: int, cmd: int, data: bytes = b"") -> bytes:
