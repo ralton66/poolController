@@ -57,6 +57,13 @@ class PoolState:
     def apply_parsed(self, parsed: ParsedPacket, hex_payload: str = "") -> None:
         """Merge one parsed PDA packet into observable state."""
         self.touch()
+        if parsed.frame.cmd == 0x08:
+            line_num = parsed.frame.data[0] if parsed.frame.data else None
+            parsed.fields["line"] = line_num
+            print(f"Highlighted Line: {line_num}")
+        if parsed.frame.dest == 0x60 and parsed.frame.cmd == 0x04:
+            print(f"{parsed.text}")
+
         pkt = parsed.to_dict()
         pkt["hex"] = hex_payload
         self.last_packet = pkt

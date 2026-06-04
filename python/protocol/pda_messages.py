@@ -60,6 +60,7 @@ class ParsedPacket:
 def parse_packet(frame: JandyFrame) -> ParsedPacket:
 
     parsed = ParsedPacket(frame=frame)
+    
     if not frame.data:
         return parsed
 
@@ -74,6 +75,9 @@ def parse_packet(frame: JandyFrame) -> ParsedPacket:
     parsed.text = text
     _apply_text_fields(parsed, text)
     parsed.fields["cmd_name"] = _cmd_name(frame.cmd)
+ 
+    #print(f"parse_packet: D:=0x{parsed.frame.dest:02X} cmd=0x{parsed.frame.cmd:02X} text='{parsed.text}' fields={parsed.fields}") 
+
     return parsed
 
 

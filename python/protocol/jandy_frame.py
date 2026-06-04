@@ -27,8 +27,8 @@ class JandyFrame:
         return bytes([self.dest, self.cmd]) + self.data
 
     def validate_checksum(self) -> bool:
-        #return checksum8(self.payload+0x12) == self.checksum
-        return True
+        return checksum8(self.payload + 0x12) == self.checksum
+        #return True
 
 def checksum8(body: bytes) -> int:
     return sum(body) & 0xFF
@@ -87,6 +87,7 @@ def decode_payload(payload: bytes) -> JandyFrame:
     dest, cmd = payload[0], payload[1]
     data = payload[2:-1]
     cksum = payload[-1]
+
     jf = JandyFrame(dest=dest, cmd=cmd, data=data, checksum=cksum)
     #if not jf.validate_checksum():
     #    print("cs")

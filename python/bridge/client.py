@@ -46,7 +46,6 @@ class BridgeClient:
         Bridge.call("inject_test_packet")
 
     def log_rx_payload(self, hex_payload: str) -> None:
-        print("Log")
         csv_line = pda_parse(hex_payload)
         #if hex_payload[:4] in {"0012", "001F", "0020"}:
         #    print("???")
@@ -100,19 +99,19 @@ def pda_parse(hex_str):
 
     # 1. Determine Direction and Destination Names
     if dest_byte == 0x60:
-        direction = "toPDA"
-        dest_name = "PDA"
+        direction = "PDA"
+        dest_name = " "
     elif dest_byte == 0x00:
-        direction = "toMstr"
-        dest_name = "Master"
+        direction = "Mstr"
+        dest_name = " "
     else:
-        direction = "unknown"
-        dest_name = f"{dest_byte:02X}"
+        direction = f"0x{dest_byte:02X}"
+        dest_name = " "
 
     # 2. Validate Checksum
     # Sum all bytes except the last one, add 0x10 and 0x02, mask to 1 byte
     calculated_checksum = (sum(packet_bytes[:-1]) + 0x10 + 0x02) & 0xFF
-    checksum_status = f"{checksum_byte:02X} (Valid)" if calculated_checksum == checksum_byte else f"{checksum_byte:02X} (INVALID)"
+    checksum_status = f"{checksum_byte:02X}" if calculated_checksum == checksum_byte else f"{checksum_byte:02X} (INVALID)"
 
     # Initialize placeholders for interpretation logic
     parsed_cmd = f"0x{cmd_byte:02X}"
