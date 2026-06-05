@@ -221,22 +221,33 @@ void rs485WriteRaw(const uint8_t* data, int len) {
 }
 
 // Send full on-wire Jandy frame (hex string from Linux)
-void rs485SendHex(const String& hex) {
+void rs485SendHex(const char* hex) {
+
+    size_t byteCount = 0;
+    size_t strLen = strlen(hex);
     uint8_t buf[MAX_PKT];
-    int n = 0;
-    for (unsigned int i = 0; i + 1 < hex.length() && n < MAX_PKT; i += 2) {
-        while (i < hex.length() && hex.charAt(i) == ' ') i++;
-        if (i + 1 >= hex.length()) break;
-        int hi = hexNibble(hex.charAt(i));
-        int lo = hexNibble(hex.charAt(i + 1));
-        if (hi < 0 || lo < 0) {
-            Monitor.println("RS485_send: bad hex");
-            return;
+
+    // Process characters in pairs (2 hex characters = 1 raw byte)
+    for (size_t i = 0; i < strLen && byteCount < MAX_PKT; i += 2) {
+        
+        // Handle an odd character at the end safely by stopping
+        if (hex[i + 1] == '\0') {
+            break; 
         }
-        buf[n++] = (uint8_t)((hi << 4) | lo);
-    }
-    if (n > 0) {
-        rs485WriteRaw(buf, n);
+
+        // Extract a two-character substring fragment
+        char byteChars[3] = { hex[i], hex[i + 1], '\0' };
+
+        // Convert the base-16 string pair into a base-10 numerical integer
+        uint8_t byteVal = (uint8_t)strtol(byteChars, NULL, 16);
+
+        // Assign the number to our buffer array
+        buf[byteCount] = byteVal;
+        byteCount++;
+    }   
+    
+    if (byteCount) {
+        rs485WriteRaw(buf, byteCount);
     }
 }
 
@@ -251,7 +262,7 @@ void injectTestPacket() {
 void rs485_tx(String hex) {
     Monitor.print("RS485 TX ");
     Monitor.println(hex);
-    rs485SendHex(hex);
+    rs485SendHex(hex.c_str());
 }
 
 void inject_test_packet() {

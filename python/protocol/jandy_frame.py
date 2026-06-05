@@ -27,11 +27,11 @@ class JandyFrame:
         return bytes([self.dest, self.cmd]) + self.data
 
     def validate_checksum(self) -> bool:
-        return checksum8(self.payload + 0x12) == self.checksum
+        return checksum8(self.payload) == self.checksum
         #return True
 
 def checksum8(body: bytes) -> int:
-    return sum(body) & 0xFF
+    return (sum(body) + 0x12) & 0xFF
 
 def hex_to_bytes(hex_str: str) -> bytes:
     s = hex_str.strip().replace(" ", "").upper()
@@ -45,13 +45,13 @@ def bytes_to_hex(data: bytes) -> str:
 def encode_wire(dest: int, cmd: int, data: bytes = b"") -> bytes:
     """Build full on-wire frame including DLE/STX/ETX and escapes."""
     body = bytes([dest & 0xFF, cmd & 0xFF]) + data
+    body_ck = body + bytes([checksum8(body)])
     out = bytearray([DLE, STX])
-    for b in body:
+    for b in body_ck:
         out.append(b)
         if b == DLE:
             out.append(DLE)
-    body_ck = bytes([checksum8(out)])
-    out.extend([body_ck, DLE, ETX])
+    out.extend([DLE, ETX])
     return bytes(out)
 
 def encode_payload(dest: int, cmd: int, data: bytes = b"") -> bytes:
@@ -81,10 +81,10 @@ def decode_wire(frame: bytes) -> JandyFrame:
 
 def decode_payload(payload: bytes) -> JandyFrame:
     """Parse DEST+CMD+DATA+CHECKSUM (as received from MCU notify)."""
-    if len(payload) < 3:
-        print("too short")
-        raise ValueError("payload too short")
     dest, cmd = payload[0], payload[1]
+    if len(payload) < 3:
+        print("Payload:", payload)
+        return
     data = payload[2:-1]
     cksum = payload[-1]
 

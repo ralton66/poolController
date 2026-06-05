@@ -10,10 +10,10 @@ from typing import Callable
 
 from bridge.client import BridgeClient
 from model.pool_state import PoolState
-from protocol.jandy_frame import decode_payload, hex_to_bytes
+from protocol.jandy_frame import decode_payload, encode_wire, hex_to_bytes
 from protocol.pda_messages import parse_packet
 from services.controller import PoolController
-
+from model.commands import Command, CommandType, build_wire_frames
 
 class PoolMonitor:
     def __init__(
@@ -35,29 +35,31 @@ class PoolMonitor:
             self.bridge.log_rx_payload(hex_payload)
             frame = decode_payload(hex_to_bytes(hex_payload))
             parsed = parse_packet(frame)
-            self.check_queue()
-            with self._lock:
-                self.state.apply_parsed(parsed, hex_payload)
-                self.state.last_error = None
-            self._notify()
+            if frame.dest == 96:
+                self.check_queue()
+            
         except Exception as e:
             with self._lock:
                 self.state.last_error = str(e)
                 self.state.last_packet = {"error": str(e), "hex": hex_payload}
             self._notify()
-
+            # add update code back in here
     def check_queue(self) -> None:
+
+        cmd = None
         try:
-            # No 'if self.pc is not None:' needed anymore!
             cmd = self.pc._queue.get_nowait()
-            print("cmd from queue:", cmd)
-            
-            # ... run state machine ...
-            self.pc._queue.task_done()
-            
-        except queue.Empty:
-            pass
+        except:
+            cmd = None
         
+        if cmd is not None:
+            wire = encode_wire(0x00, 0x01, b"\x50\x05")
+            self.pc._queue.task_done()         
+        else:   
+            wire = encode_wire(0x00, 0x01, b"\x00\x00") 
+        self.bridge.send_wire_bytes(wire)
+
+
     def get_snapshot(self) -> dict:
         with self._lock:
             return self.state.to_dict()

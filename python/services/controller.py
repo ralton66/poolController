@@ -88,7 +88,7 @@ class PoolController:
             hex_wire = self.bridge.send_wire_bytes(wire)
             if self._on_tx:
                 self._on_tx(hex_wire)
-            time.sleep(FRAME_GAP_S)
+            #time.sleep(FRAME_GAP_S)
 
 
 

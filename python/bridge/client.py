@@ -34,11 +34,8 @@ class BridgeClient:
         return hex_wire
 
     def send_wire_bytes(self, wire: bytes) -> str:
-        print("SWB")
         hex_wire = bytes_to_hex(wire)
-        hex_wire = "0x10, 0x02, 0x00, 0x01, 0x50, 0x04, 0x67, 0x10, 0x03"
-        self._log("TX", hex_wire)
-        Bridge.call("RS485_send", hex_wire)
+        Bridge.notify("RS485_send", hex_wire)
         return hex_wire
 
     def inject_test_packet(self) -> None:

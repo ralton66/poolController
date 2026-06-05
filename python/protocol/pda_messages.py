@@ -60,21 +60,17 @@ class ParsedPacket:
 def parse_packet(frame: JandyFrame) -> ParsedPacket:
 
     parsed = ParsedPacket(frame=frame)
-    
-    if not frame.data:
-        return parsed
+    #print(f"parse_packet: raw frame dest=0x{frame.dest:02X} cmd=0x{frame.cmd:02X} data={frame.data.hex().upper()} checksum=0x{frame.checksum:02X}")
+    #if not frame.data:
+    #    return parsed
 
-    try:
-        text = frame.data.decode("ascii", errors="replace").strip()
-    except Exception:
-        return parsed
+    #try:
+    #    text = frame.data.decode("ascii", errors="replace").strip()
+    #except Exception:
+    #    return parsed
 
-    if not text:
-        return parsed
-
-    parsed.text = text
-    _apply_text_fields(parsed, text)
-    parsed.fields["cmd_name"] = _cmd_name(frame.cmd)
+    #if not text:
+    #    return parsed
  
     #print(f"parse_packet: D:=0x{parsed.frame.dest:02X} cmd=0x{parsed.frame.cmd:02X} text='{parsed.text}' fields={parsed.fields}") 
 
