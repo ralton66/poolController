@@ -1,47 +1,53 @@
 # SPDX-FileCopyrightText: Copyright (C) ARDUINO SRL (http://www.arduino.cc)
 # SPDX-License-Identifier: MPL-2.0
 
-"""Pool equipment and mode state (single source of truth for UI and Cloud)."""
-
 from __future__ import annotations
-
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-
 from protocol.pda_messages import ParsedPacket
 
 STALE_SECONDS = 30
-
 
 class PoolMode(str, Enum):
     OFF = "off"
     POOL = "pool"
     SPA = "spa"
 
-
-@dataclass
 class PoolState:
-    mode: PoolMode = PoolMode.OFF
-    air_temp_f: int | None = None
-    pool_temp_f: int | None = None
-    spa_temp_f: int | None = None
-    pool_setpoint_f: int | None = None
-    spa_setpoint_f: int | None = None
-    filter_pump_on: bool | None = None
-    filter_rpm: int | None = None
-    aux_pump_on: bool | None = None
-    heater_on: bool | None = None
-    pool_light_on: bool | None = None
-    spa_light_on: bool | None = None
-    valve: str | None = None
-    swg_status: str | None = None
-    connection_ok: bool = False
-    undefined_state: bool = False
-    last_update: float = 0.0
-    last_error: str | None = None
-    last_packet: dict[str, Any] = field(default_factory=dict)
+    def __init__(self):
+        # Master hardware display memory tracking. Keys are raw Jandy lead bytes.
+        self.virtual_screen: dict[int, str] = {}
+        
+        # Observable parsed properties
+        self.mode = PoolMode.OFF
+        self.air_temp_f: int | None = None
+        self.pool_temp_f: int | None = None
+        self.spa_temp_f: int | None = None
+        self.pool_setpoint_f: int | None = None
+        self.spa_setpoint_f: int | None = None
+        
+        self.salt_ppm: int | None = None
+        self.aquapure_percent: int | None = None
+        self.filter_rpm: int | None = None
+        self.filter_watts: int | None = None
+        
+        self.filter_pump_on: bool = False
+        self.aux_pump_on: bool = False
+        self.heater_on: bool = False
+        self.pool_light_on: bool = False
+        self.spa_light_on: bool = False
+        self.valve: str | None = None
+        self.swg_status: str | None = None
+        self.undefined_state: bool = False
+        self.last_error: str | None = None
+        
+        # Watchdog Tracking
+        self.last_update: float = 0.0
+        self.connection_ok: bool = False
+        self.last_packet: dict[str, Any] = {}
 
     def touch(self) -> None:
         self.last_update = time.time()
@@ -51,127 +57,178 @@ class PoolState:
         if self.last_update <= 0:
             self.connection_ok = False
             return
-        if time.time() - self.last_update > STALE_SECONDS:
+        stale_threshold = STALE_SECONDS if 'STALE_SECONDS' in globals() else 10
+        if time.time() - self.last_update > stale_threshold:
             self.connection_ok = False
 
     def apply_parsed(self, parsed: ParsedPacket, hex_payload: str = "") -> None:
-        """Merge one parsed PDA packet into observable state."""
-        self.touch()
+        dest = parsed.frame.dest
+        cmd = parsed.frame.cmd
+        raw_data = parsed.frame.data
 
-        if parsed.frame.cmd == 0x08:
-            line_num = parsed.frame.data[0] 
-            parsed.fields["line"] = line_num
-            print(f"Highlighted Line: {line_num}")
-        
-        if parsed.frame.dest == 0x60 and parsed.frame.cmd == 0x04:
-            print(f"Text: {parsed.text}")
+        # If Jandy broadcasts a Clear Screen command (0x09), wipe out old text artifacts!
+        if dest == 0x60 and cmd == 0x09:
+            self.touch()
+            self.virtual_screen.clear()
+            return
 
-        pkt = parsed.to_dict()
-        pkt["hex"] = hex_payload
-        self.last_packet = pkt
+        # Handle Standard Text Messages (0x04)
+        if dest == 0x60 and cmd == 0x04:
+            if not raw_data:
+                return
+            
+            self.touch()
+            pkt = parsed.to_dict()
+            pkt["hex"] = hex_payload
+            self.last_packet = pkt  
 
-        fields = parsed.fields
-        print(f"Applying parsed packet fields: {fields}")
-        temp_type = fields.get("temp_type")
-        temp_f = fields.get("temp_f")
-        if temp_type == "air" and temp_f is not None:
-            self.air_temp_f = temp_f
-        elif temp_type == "pool" and temp_f is not None:
-            self.pool_temp_f = temp_f
-        elif temp_type == "spa" and temp_f is not None:
-            self.spa_temp_f = temp_f
+            # Extract lead memory line coordinate
+            lead_byte = raw_data[0]
+            raw_text_bytes = raw_data[1:]
+            
+            # 🚀 Split at the first null terminator to drop stale buffer memory data
+            if b"\x00" in raw_text_bytes:
+                raw_text_bytes = raw_text_bytes.split(b"\x00")[0]
 
-        setpoint_type = fields.get("setpoint_type")
-        setpoint_f = fields.get("setpoint_f")
-        if setpoint_type == "pool" and setpoint_f is not None:
-            self.pool_setpoint_f = setpoint_f
-        elif setpoint_type == "spa" and setpoint_f is not None:
-            self.spa_setpoint_f = setpoint_f
+            # 🚀 FIXED: Decode 'raw_text_bytes' instead of 'raw_data[1:]'
+            text_chunk = raw_text_bytes.decode("ascii", errors="replace").strip()
+            text_chunk = text_chunk.replace("`", "F").upper()
 
-        if "rpm" in fields:
-            self.filter_rpm = fields["rpm"]
-            self.filter_pump_on = fields["rpm"] > 0
+            # Assign text data straight into its raw hex coordinate position
+            self.virtual_screen[lead_byte] = text_chunk
+            
+            # Real-Time Layout Logger
+            print("\n--- Current Virtual Display ---")
+            for addr in sorted(self.virtual_screen.keys()):
+                print(f"ADDR 0x{addr:02X}: '{self.virtual_screen[addr]}'")
+            print("--------------------------------\n")
 
-        text = (parsed.text or "").upper()
-        if "FILTER" in text and "OFF" in text:
-            self.filter_pump_on = False
-            self.filter_rpm = 0
-        elif "FILTER" in text and ("ON" in text or "RPM" in text):
-            print(f"Setting filter pump on based on text='{text}'")
-            self.filter_pump_on = True
+            # Fire off our upgraded content interpreter
+            self._parse_screen_matrix()
 
-        if "HEATER" in text:
-            self.heater_on = "ON" in text and "OFF" not in text
 
-        if "POOL LIGHT" in text or text.startswith("LIGHT POOL"):
-            self.pool_light_on = "ON" in text
-        if "SPA LIGHT" in text:
-            self.spa_light_on = "ON" in text
+    def _parse_screen_matrix(self):
+        # Flatten all text segments currently residing in display memory into one block
+        status_block = " ".join(self.virtual_screen.values()).upper()
 
-        if "JET" in text or "AUX" in text:
-            self.aux_pump_on = "ON" in text
+        # Determine if the active frame set represents the Diagnostic Status view
+        is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
 
-        if "SALT" in text or "CHLOR" in text or "SWG" in text:
-            self.swg_status = parsed.text
+        # =====================================================================
+        # SCREEN TYPE A: DIAGNOSTIC / EQUIPMENT STATUS PROCESSING
+        # =====================================================================
+        if is_equipment_status:
+            # 1. Parse AquaPure Output Percentage (e.g., "AQUAPURE 40%")
+            if "AQUAPURE" in status_block:
+                ap_match = re.search(r"AQUAPURE\s*(\d+)\s*%", status_block)
+                if ap_match: 
+                    self.aquapure_percent = int(ap_match.group(1))
 
-        if "VALVE" in text:
-            if "SPA" in text:
-                self.valve = "spa"
-            elif "POOL" in text:
-                self.valve = "pool"
-            else:
-                self.valve = parsed.value or text
+            # 2. Parse SWG Salt Level (e.g., "SALT 3100 PPM")
+            if "SALT" in status_block:
+                salt_match = re.search(r"SALT\s*(\d+)", status_block)
+                if salt_match: 
+                    self.salt_ppm = int(salt_match.group(1))
 
-        if text == "SPA MODE" or text.startswith("SPA MODE"):
-            self.mode = PoolMode.SPA
-        elif text == "POOL MODE" or text.startswith("POOL MODE"):
-            self.mode = PoolMode.POOL
-        elif "ALL OFF" in text:
-            self.mode = PoolMode.OFF
-            self.filter_pump_on = False
+            # 3. Parse Filter Pump Performance Metrics
+            # Note: We slice or search flexible numeric groupings to catch trailing anomalies
+            if "RPM" in status_block:
+                rpm_match = re.search(r"RPM:\s*(\d+)", status_block)
+                if rpm_match: 
+                    self.filter_rpm = int(rpm_match.group(1))
+                    self.filter_pump_on = self.filter_rpm > 0
+            elif "FILTER PUMP" in status_block:
+                # Fallback flag if pump line is visible but speed info hasn't cycled in yet
+                self.filter_pump_on = True
 
-        self._check_consistency()
+            # 4. Parse Electrical Load draw (e.g., "WATTS: 326")
+            if "WATTS" in status_block:
+                watts_match = re.search(r"WATTS:\s*(\d+)", status_block)
+                if watts_match: 
+                    self.filter_watts = int(watts_match.group(1))
 
-    def _check_consistency(self) -> None:
-        """Flag undefined state when mode and equipment disagree."""
-        if self.mode == PoolMode.SPA and self.valve == "pool":
-            self.undefined_state = True
-        elif self.mode == PoolMode.OFF and self.filter_pump_on is True:
-            self.undefined_state = True
+            # 5. Global Aux Toggle Monitors
+            if "POOL LIGHT" in status_block:
+                self.pool_light_on = "POOL LIGHT ON" in status_block
+            if "SPA LIGHT" in status_block:
+                self.spa_light_on = "SPA LIGHT ON" in status_block
+
+        # =====================================================================
+        # SCREEN TYPE B: DYNAMIC MAIN HOME VIEW
+        # =====================================================================
         else:
-            self.undefined_state = False
+            # Safely fetch known base components or fallback to empty strings
+            l2_labels = self.virtual_screen.get(0x01, "")
+            l3_values = self.virtual_screen.get(0x82, "")
+            l4_footer = self.virtual_screen.get(0x04, "")
+
+            # Air Temperature parsing via index matching
+            if "AIR" in l2_labels:
+                air_idx = l2_labels.find("AIR")
+                air_match = re.search(r"(\d+)\s*F", l3_values[air_idx : air_idx + 10])
+                if air_match: 
+                    self.air_temp_f = int(air_match.group(1))
+
+            # Pool Temperature tracking
+            if "POOL" in l2_labels:
+                pool_idx = l2_labels.find("POOL")
+                pool_match = re.search(r"(\d+)\s*F", l3_values[pool_idx : pool_idx + 10])
+                if pool_match: 
+                    self.pool_temp_f = int(pool_match.group(1))
+
+            # Spa Temperature tracking
+            if "SPA" in l2_labels:
+                spa_idx = l2_labels.find("SPA")
+                spa_match = re.search(r"(\d+)\s*F", l3_values[spa_idx : spa_idx + 10])
+                if spa_match: 
+                    self.spa_temp_f = int(spa_match.group(1))
+
+            # Home-screen operational mode decoders
+            if "POOL MODE" in status_block:
+                self.mode = PoolMode.POOL if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block else self.mode
+                if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block:
+                    self.filter_pump_on = True
+                    
+            if "SPA MODE" in status_block:
+                self.mode = PoolMode.SPA if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block else self.mode
+                if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block:
+                    self.filter_pump_on = True
+                    
+            if "ALL OFF" in status_block:
+                self.mode = PoolMode.OFF
+                self.filter_pump_on = False
 
     def to_dict(self) -> dict[str, Any]:
         self.check_staleness()
+        
+        # Convert internal hex coordinate keys to clean string hex keys for JSON compatibility
+        export_display = {f"0x{k:02X}": v for k, v in self.virtual_screen.items()}
+        
         return {
-            "mode": self.mode.value,
+            "mode": self.mode.value if hasattr(self.mode, 'value') else self.mode,
             "air_temp_f": self.air_temp_f,
             "pool_temp_f": self.pool_temp_f,
             "spa_temp_f": self.spa_temp_f,
             "pool_setpoint_f": self.pool_setpoint_f,
             "spa_setpoint_f": self.spa_setpoint_f,
-            "filter_pump_on": self.filter_pump_on,
+            
+            "salt_ppm": self.salt_ppm,
+            "aquapure_percent": self.aquapure_percent,
             "filter_rpm": self.filter_rpm,
+            "filter_watts": self.filter_watts,
+            
+            "filter_pump_on": self.filter_pump_on,
             "aux_pump_on": self.aux_pump_on,
             "heater_on": self.heater_on,
             "pool_light_on": self.pool_light_on,
             "spa_light_on": self.spa_light_on,
             "valve": self.valve,
             "swg_status": self.swg_status,
-            "connection_ok": self.connection_ok,
             "undefined_state": self.undefined_state,
-            "last_update": self.last_update,
             "last_error": self.last_error,
-            "last_packet": dict(self.last_packet),
-        }
-
-    def cloud_read_dict(self) -> dict[str, Any]:
-        """Subset exposed as Cloud read properties (AC-12)."""
-        d = self.to_dict()
-        return {
-            "pool_temp_f": d["pool_temp_f"],
-            "spa_temp_f": d["spa_temp_f"],
-            "mode": d["mode"],
-            "filter_pump_on": d["filter_pump_on"],
-            "filter_rpm": d["filter_rpm"],
+            "connection_ok": self.connection_ok,
+            "last_update": self.last_update,
+            "last_packet": dict(self.last_packet) if self.last_packet else {},
+            
+            "display": export_display
         }

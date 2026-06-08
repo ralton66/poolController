@@ -260,8 +260,8 @@ void injectTestPacket() {
 }
 
 void rs485_tx(String hex) {
-    Monitor.print("RS485 TX ");
-    Monitor.println(hex);
+    //Monitor.print("RS485 TX ");
+    //Monitor.println(hex);
     rs485SendHex(hex.c_str());
 }
 

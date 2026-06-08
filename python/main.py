@@ -113,7 +113,7 @@ def on_send_test_tx(client, data):
 
 def on_inject_test_rx(client, data):
     if is_test_mode():
-        test_mode.load_fixtures_on_startup()
+        print("")
     else:
         bridge.inject_test_packet()
 

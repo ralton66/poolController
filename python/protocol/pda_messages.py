@@ -65,6 +65,7 @@ def parse_packet(frame: JandyFrame) -> ParsedPacket:
 
     try:
         text = frame.data.decode("ascii", errors="replace").strip()
+        text = "".join(ch for ch in text if ord(ch) >= 32).strip()
     except Exception:
         return parsed
 

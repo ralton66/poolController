@@ -41,8 +41,11 @@ class PoolMonitor:
             parsed = parse_packet(frame)
             if frame.dest == 0x60:
                 if self.sm.state == ControlState.IDLE:
-                    print("PoolMonitor: Received packet in IDLE state, checking command queue...")
-                    self.sm.check_cmd(self.check_queue())
+                    
+                    active_cmd = self.check_queue()
+                    if active_cmd is not None:
+                        print("PoolMonitor: Active command found:", active_cmd)
+                        self.sm.check_cmd(active_cmd)
                 elif self.sm.state == ControlState.SEND_PKTS:
                     print("PoolMonitor: Received packet in SEND_PKTS state, sending control packets...")
                     wire = self.sm.process_command()
@@ -65,7 +68,6 @@ class PoolMonitor:
 
 
     def check_queue(self) -> None:
-
         cmd = None
         try:
             cmd = self.pc._queue.get_nowait()
