@@ -24,49 +24,78 @@ class CommandType(str, Enum):
     STATUS_POLL = "status_poll"
 
 
-@dataclass(frozen=True)
+#@dataclass(frozen=True)
+#class Command:
+# #   type: CommandType
+#    temp_f: int | None = None
+#    rpm: int | None = None
+#    preset: str | None = None
+#    lights_on: bool | None = None
+#    light_target: str = "pool"
+
+
 class Command:
-    type: CommandType
-    temp_f: int | None = None
-    rpm: int | None = None
-    preset: str | None = None
-    lights_on: bool | None = None
-    light_target: str = "pool"
+    def __init__(self, command_type, rpm: int = None, temp_f: int = None, *control_packets: bytes):
+        self.type = command_type
+        self.rpm = rpm
+        self.temp_f = temp_f
+        # control_packets automatically captures any remaining arguments as a tuple
+        self.control_packets = control_packets 
+
+    def __repr__(self):
+        return f"Command(type={self.type}, rpm={self.rpm}, packets_count={len(self.control_packets)})"
 
 
-def build_wire_frames(cmd: Command) -> list[bytes]:
-    """Return ordered on-wire frames for one intent (refine after live protocol.log)."""
-    if cmd.type == CommandType.SPA_ON:
-        temp = cmd.temp_f if cmd.temp_f is not None else 102
-        return [
-            _wire(DEST_PANEL, CMD_STATUS, b"SPA MODE"),
-            _wire(DEST_PANEL, CMD_STATUS, f"SPA SET {temp}F".encode("ascii")),
-        ]
-    if cmd.type == CommandType.POOL_FILTER:
-        if cmd.rpm is not None:
-            data = f"FILTER {cmd.rpm} RPM".encode("ascii")
-        elif cmd.preset:
-            data = f"FILTER {cmd.preset}".encode("ascii")
+class ControlState(Enum):
+    SEND_PKTS = 1
+    STATE_RESET = 2
+    IDLE = 3
+
+class StateMachine:
+    def __init__(
+        self,
+        state: ControlState,
+        timeout_limit: int = 10, 
+        reset_clicks: int = 4,
+        number_of_packets: int = 0,
+        packet_idx: int = 0,
+        
+    ):
+           
+        self.state = state
+        self.timeout_limit = timeout_limit
+        self.reset_clicks_total = reset_clicks
+        self.number_of_packets = number_of_packets
+        self.packet_idx = packet_idx
+        self.reset_clicks_remaining = 0
+        self.processed_packets: list[bytes] = []
+
+    #@property
+    #def target_line(self) -> int:
+        #Helper to get the target line of the current active menu layer.
+    #    return self.menu_sequence[self.current_layer_index]
+
+    def check_cmd(self, cmd: Command) -> None:
+        self.number_of_packets = len(cmd.control_packets)
+        print(f"Num packets: {self.number_of_packets}")
+        if self.number_of_packets != 0:
+            self.packet_idx = 0
+            self.state = ControlState.SEND_PKTS
+            for index, packet in enumerate(cmd.control_packets, start=1):
+                print(f"Processing packet {index}/{self.number_of_packets}: {packet.hex().upper()} Bytes: {self.processed_packets[index-1]}")
+                self.processed_packets.append(packet)
         else:
-            data = b"FILTER ON"
-        return [_wire(DEST_PANEL, CMD_STATUS, data)]
-    if cmd.type == CommandType.ALL_OFF:
-        return [_wire(DEST_PANEL, CMD_STATUS, b"ALL OFF")]
-    if cmd.type == CommandType.LIGHTS:
-        target = (cmd.light_target or "pool").upper()
-        state = b"ON" if cmd.lights_on else b"OFF"
-        return [
-            _wire(DEST_PANEL, CMD_STATUS, target.encode("ascii") + b" LIGHT " + state)
-        ]
-    if cmd.type == CommandType.RESET:
-        return [
-            _wire(DEST_PANEL, CMD_STATUS, b"AIR TEMP ?"),
-            _wire(DEST_PANEL, CMD_STATUS, b"ALL OFF"),
-        ]
-    if cmd.type == CommandType.STATUS_POLL:
-        return [_wire(DEST_PANEL, CMD_STATUS, b"AIR TEMP ?")]
-    return []
+            print(f"Received command has no packets. {cmd.control_packets[0] if cmd.control_packets else 'No packets'}")
 
+
+    def process_command(self) -> None:
+        print(f"Processing command Num:{self.number_of_packets} Idx: {self.packet_idx}")
+        if self.number_of_packets == (self.packet_idx + 1):    
+            self.state = ControlState.STATE_RESET
+        
+        self.packet_idx += 1
+        return self.processed_packets[self.packet_idx-1]
+       
 
 def _wire(dest: int, cmd: int, data: bytes) -> bytes:
     return encode_wire(dest, cmd, data)

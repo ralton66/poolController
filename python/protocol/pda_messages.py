@@ -11,11 +11,11 @@ from dataclasses import dataclass, field
 from .jandy_frame import JandyFrame
 
 # PDA display commands (Jandy protocol)
-CMD_PDA_HIGHLIGHT = 0x08
-CMD_PDA_CLEAR = 0x09
-CMD_PDA_SHIFTLINES = 0x0F
-CMD_PDA_HIGHLIGHTCHARS = 0x10
-CMD_PDA_0x04 = 0x04
+CMD_HIGHLIGHT = 0x08
+CMD_CLEAR = 0x09
+CMD_SHIFTLINES = 0x0F
+CMD_HIGHLITCHARS = 0x10
+CMD_MSG_LONG = 0x04
 CMD_PDA_0x05 = 0x05
 CMD_PDA_0x1B = 0x1B
 
@@ -60,31 +60,32 @@ class ParsedPacket:
 def parse_packet(frame: JandyFrame) -> ParsedPacket:
 
     parsed = ParsedPacket(frame=frame)
-    #print(f"parse_packet: raw frame dest=0x{frame.dest:02X} cmd=0x{frame.cmd:02X} data={frame.data.hex().upper()} checksum=0x{frame.checksum:02X}")
-    #if not frame.data:
-    #    return parsed
+    if not frame.data:
+        return parsed
 
-    #try:
-    #    text = frame.data.decode("ascii", errors="replace").strip()
-    #except Exception:
-    #    return parsed
+    try:
+        text = frame.data.decode("ascii", errors="replace").strip()
+    except Exception:
+        return parsed
 
-    #if not text:
-    #    return parsed
- 
-    #print(f"parse_packet: D:=0x{parsed.frame.dest:02X} cmd=0x{parsed.frame.cmd:02X} text='{parsed.text}' fields={parsed.fields}") 
+    if not text:
+        return parsed
 
+    parsed.text = text
+    _apply_text_fields(parsed, text)
+    parsed.fields["cmd_name"] = _cmd_name(frame.cmd)
     return parsed
+
 
 
 def _cmd_name(cmd: int) -> str:
     names = {
-        CMD_PDA_0x04: "PDA_0x04",
+        CMD_MSG_LONG: "MSG_LONG",
         CMD_PDA_0x05: "PDA_0x05",
-        CMD_PDA_HIGHLIGHT: "PDA_HIGHLIGHT",
-        CMD_PDA_CLEAR: "PDA_CLEAR",
-        CMD_PDA_SHIFTLINES: "PDA_SHIFTLINES",
-        CMD_PDA_HIGHLIGHTCHARS: "PDA_HIGHLIGHTCHARS",
+        CMD_HIGHLIGHT: "HIGHLIGHT",
+        CMD_CLEAR: "CLEAR",
+        CMD_SHIFTLINES: "SHIFTLINES",
+        CMD_HIGHLITCHARS: "HIGHLIGHTCHARS",
         CMD_PDA_0x1B: "PDA_0x1B",
     }
     return names.get(cmd, f"CMD_0x{cmd:02X}")

@@ -11,11 +11,28 @@ import time
 from typing import Callable
 
 from bridge.client import BridgeClient
-from model.commands import Command, CommandType, build_wire_frames
+from model.commands import Command, CommandType
 from model.pool_state import PoolState
 
 FRAME_GAP_S = 0.35
 
+class ControlPackets:
+    """Steady-State Operational Ready Packets (Answering normal runtime loops)"""
+    
+    # Keep Alive Packet
+    PDA_KA = b"\x10\x02\x00\x01\x00\x00\x13\x10\x03"
+    
+    # Acknowledge Packet
+    PDA_ACK = b"\x10\x02\x00\x01\x50\x00\x63\x10\x03"
+    
+    # Check Status / Checksum Packet
+    PDA_CS = b"\x10\x02\x00\x20\x46\x00\x00\x00\x00\x48\x10\x03"
+    
+    # Handshake Packet
+    PDA_HS = b"\x10\x02\x00\x20\x46\x00\x00\x03\x30\x32\x30\x00\x00\x3D\x10\x03"
+    
+    # Select Packet
+    PDA_SELECT = b"\x10\x02\x00\x01\x50\x04\x67\x10\x03"
 
 class PoolController:
     def __init__(
@@ -44,31 +61,24 @@ class PoolController:
         self._queue.put(cmd)
 
     def spa_on(self, temp_f: int) -> None:
-        self.enqueue(Command(type=CommandType.SPA_ON, temp_f=temp_f))
+        print("PoolController: spa_on called with temp_f:", temp_f)
+        #self.enqueue(Command(type=CommandType.SPA_ON, temp_f=temp_f))
 
     def pool_filter(self, rpm: int | None = None, preset: str | None = None) -> None:
-        #target_sequence = [9, 0] 
-        #pda = JandyPDAStateMachine(menu_sequence=target_sequence, timeout_limit=5, reset_clicks=3)
-        #response = pda.process_packet(p_type, payload)
         print("PoolController: pool_filter called with rpm:", rpm, "preset:", preset)
-        self.enqueue(
-            Command(type=CommandType.POOL_FILTER, rpm=rpm, preset=preset)
-        )
+        self.enqueue(Command(CommandType.POOL_FILTER, rpm, 101, ControlPackets.PDA_SELECT))
 
     def all_off(self) -> None:
-        self.enqueue(Command(type=CommandType.ALL_OFF))
+        print("PoolController: all_off called")
+        #self.enqueue(Command(type=CommandType.ALL_OFF))
 
     def set_lights(self, on: bool, target: str = "pool") -> None:
-        self.enqueue(
-            Command(
-                type=CommandType.LIGHTS,
-                lights_on=on,
-                light_target=target,
-            )
-        )
+        print("PoolController: set_lights called with on:", on, "target:", target)
+        #self.enqueue( Command(type=CommandType.LIGHTS,lights_on=on,  light_target=target,)        )
 
     def reset(self) -> None:
-        self.enqueue(Command(type=CommandType.RESET))
+        print("PoolController: reset called")
+        #self.enqueue(Command(type=CommandType.RESET))
 
     def _worker(self) -> None:
         while self._running:
@@ -84,11 +94,8 @@ class PoolController:
                 self.enqueue(Command(type=CommandType.RESET))
 
     def _execute(self, cmd: Command) -> None:
-        for wire in build_wire_frames(cmd):
-            hex_wire = self.bridge.send_wire_bytes(wire)
-            if self._on_tx:
-                self._on_tx(hex_wire)
-            #time.sleep(FRAME_GAP_S)
+        print("PoolController: Executing command:", cmd)
+        time.sleep(FRAME_GAP_S)
 
 
 

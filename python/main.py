@@ -17,7 +17,7 @@ from bridge.client import get_client
 from cloud.arduino_sync import CloudSync, cloud_enabled
 from model.pool_state import PoolState
 from services.controller import PoolController
-from services.monitor import PoolMonitor
+from services.monitor import PoolMonitor, StateMachine, ControlState
 from services.test_mode import TestModeService, is_test_mode
 
 TEST_LED = os.environ.get("TEST_LED", "0") == "1"
@@ -29,6 +29,7 @@ PKT_PDA_SELECT = bytes([
 
 bridge = get_client()
 pool_state = PoolState()
+sm = StateMachine(state=ControlState.IDLE)
 ui = WebUI()
 
 
@@ -46,7 +47,7 @@ def on_state_updated(_state: PoolState):
 
 controller = PoolController(bridge, pool_state, on_tx=lambda h: ui.send_message("protocol_tx", {"hex": h}))
 
-monitor = PoolMonitor(pool_state, bridge, controller, on_update=on_state_updated)
+monitor = PoolMonitor(pool_state, bridge, controller, sm, on_update=on_state_updated)
 cloud_sync = CloudSync(pool_state, controller, on_state_push=lambda _: broadcast_state())
 
 
@@ -76,9 +77,6 @@ def on_set_spa(client, data):
 
 
 def on_set_filter(client, data):
-    print("Filter msg")
-    print(data)
-  
     rpm = None
     preset = None
     if isinstance(data, dict):
@@ -111,12 +109,7 @@ def on_reset(client, data):
 
 
 def on_send_test_tx(client, data):
-    from model.commands import Command, CommandType, build_wire_frames
-
-    for wire in build_wire_frames(Command(type=CommandType.STATUS_POLL)):
-        hex_sent = bridge.send_wire_bytes(wire)
-        ui.send_message("protocol_tx", {"hex": hex_sent})
-
+    print("")
 
 def on_inject_test_rx(client, data):
     if is_test_mode():

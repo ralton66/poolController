@@ -57,18 +57,21 @@ class PoolState:
     def apply_parsed(self, parsed: ParsedPacket, hex_payload: str = "") -> None:
         """Merge one parsed PDA packet into observable state."""
         self.touch()
+
         if parsed.frame.cmd == 0x08:
-            line_num = parsed.frame.data[0] if parsed.frame.data else None
+            line_num = parsed.frame.data[0] 
             parsed.fields["line"] = line_num
             print(f"Highlighted Line: {line_num}")
+        
         if parsed.frame.dest == 0x60 and parsed.frame.cmd == 0x04:
-            print(f"{parsed.text}")
+            print(f"Text: {parsed.text}")
 
         pkt = parsed.to_dict()
         pkt["hex"] = hex_payload
         self.last_packet = pkt
 
         fields = parsed.fields
+        print(f"Applying parsed packet fields: {fields}")
         temp_type = fields.get("temp_type")
         temp_f = fields.get("temp_f")
         if temp_type == "air" and temp_f is not None:
@@ -94,6 +97,7 @@ class PoolState:
             self.filter_pump_on = False
             self.filter_rpm = 0
         elif "FILTER" in text and ("ON" in text or "RPM" in text):
+            print(f"Setting filter pump on based on text='{text}'")
             self.filter_pump_on = True
 
         if "HEATER" in text:

@@ -38,18 +38,6 @@ class TestPoolState(unittest.TestCase):
         self.assertEqual(d["mode"], "pool")
 
 
-class TestCommands(unittest.TestCase):
-    def test_all_off_produces_wire(self):
-        frames = build_wire_frames(Command(type=CommandType.ALL_OFF))
-        self.assertEqual(len(frames), 1)
-        self.assertIn(b"ALL OFF", frames[0])
-
-    def test_spa_on_two_frames(self):
-        frames = build_wire_frames(
-            Command(type=CommandType.SPA_ON, temp_f=102)
-        )
-        self.assertEqual(len(frames), 2)
-
 
 if __name__ == "__main__":
     unittest.main()
