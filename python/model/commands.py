@@ -78,19 +78,19 @@ class StateMachine:
     def check_cmd(self, cmd: Command) -> None:
         self.processed_packets.clear()
         self.number_of_packets = len(cmd.control_packets)
-        print(f"Num packets: {self.number_of_packets}")
+        #print(f"Num packets: {self.number_of_packets}")
         if self.number_of_packets != 0:
             self.packet_idx = 0
             self.state = ControlState.SEND_PKTS
             for index, packet in enumerate(cmd.control_packets, start=1):
                 self.processed_packets.append(packet)
-                print(f"Processing packet {index}/{self.number_of_packets}: {packet.hex().upper()} Bytes: {self.processed_packets[index-1]}")
+                #print(f"Processing packet {index}/{self.number_of_packets}: {packet.hex().upper()} Bytes: {self.processed_packets[index-1]}")
         else:
             print(f"Received command has no packets. {cmd.control_packets[0] if cmd.control_packets else 'No packets'}")
 
 
     def process_command(self) -> None:
-        print(f"Processing command Num:{self.number_of_packets} Idx: {self.packet_idx} Pkt: {self.processed_packets[self.packet_idx]}")
+        #print(f"Processing command Num:{self.number_of_packets} Idx: {self.packet_idx} Pkt: {self.processed_packets[self.packet_idx]}")
         if self.number_of_packets == (self.packet_idx + 1):    
             self.state = ControlState.STATE_RESET
         

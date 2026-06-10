@@ -83,8 +83,8 @@ def decode_payload(payload: bytes) -> JandyFrame:
     """Parse DEST+CMD+DATA+CHECKSUM (as received from MCU notify)."""
     dest, cmd = payload[0], payload[1]
     if len(payload) < 3:
-        print("Payload:", payload)
         return
+        
     data = payload[2:-1]
     cksum = payload[-1]
 

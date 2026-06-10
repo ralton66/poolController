@@ -36,7 +36,7 @@ class PoolMonitor:
 
     def handle_hex_payload(self, hex_payload: str) -> None:
         try:
-            self.bridge.log_rx_payload(hex_payload)
+            #self.bridge.log_rx_payload(hex_payload)
             frame = decode_payload(hex_to_bytes(hex_payload))
             parsed = parse_packet(frame)
             if frame.dest == 0x60:
@@ -44,12 +44,12 @@ class PoolMonitor:
                     
                     active_cmd = self.check_queue()
                     if active_cmd is not None:
-                        print("PoolMonitor: Active command found:", active_cmd)
+                        #print("PoolMonitor: Active command found:", active_cmd)
                         self.sm.check_cmd(active_cmd)
                 elif self.sm.state == ControlState.SEND_PKTS:
-                    print("PoolMonitor: Received packet in SEND_PKTS state, sending control packets...")
+                    #print("PoolMonitor: Received packet in SEND_PKTS state, sending control packets...")
                     wire = self.sm.process_command()
-                    print("PoolMonitor: Sending control packets:", wire.hex().upper())
+                    #print("PoolMonitor: Sending control packets:", wire.hex().upper())
                     self.bridge.send_wire_bytes(wire)
                 elif self.sm.state == ControlState.STATE_RESET:
                     self.pc._queue.task_done()  
@@ -75,9 +75,6 @@ class PoolMonitor:
             cmd = None
         
         if cmd is not None:
-            #wire = encode_wire(0x00, 0x01, b"\x50\x05")
-            #self.bridge.log_rx_payload(wire.hex().upper())
-            #self.pc._queue.task_done()  
             return cmd       
         else:   
             wire = encode_wire(0x00, 0x01, b"\x00\x00") 

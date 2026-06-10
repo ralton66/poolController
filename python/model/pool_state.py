@@ -61,18 +61,19 @@ class PoolState:
         if time.time() - self.last_update > stale_threshold:
             self.connection_ok = False
 
+
     def apply_parsed(self, parsed: ParsedPacket, hex_payload: str = "") -> None:
         dest = parsed.frame.dest
         cmd = parsed.frame.cmd
         raw_data = parsed.frame.data
 
-        # If Jandy broadcasts a Clear Screen command (0x09), wipe out old text artifacts!
+        # --- ACTION 1: SCREEN WIPE ---
         if dest == 0x60 and cmd == 0x09:
             self.touch()
             self.virtual_screen.clear()
             return
 
-        # Handle Standard Text Messages (0x04)
+        # --- ACTION 2: DATA STREAM GATHERING ---
         if dest == 0x60 and cmd == 0x04:
             if not raw_data:
                 return
@@ -82,29 +83,49 @@ class PoolState:
             pkt["hex"] = hex_payload
             self.last_packet = pkt  
 
-            # Extract lead memory line coordinate
             lead_byte = raw_data[0]
             raw_text_bytes = raw_data[1:]
             
-            # 🚀 Split at the first null terminator to drop stale buffer memory data
+            # Drop trailing stale buffer data past null terminators
             if b"\x00" in raw_text_bytes:
                 raw_text_bytes = raw_text_bytes.split(b"\x00")[0]
 
-            # 🚀 FIXED: Decode 'raw_text_bytes' instead of 'raw_data[1:]'
+            # Convert to string and clean up Jandy's unique symbols
             text_chunk = raw_text_bytes.decode("ascii", errors="replace").strip()
             text_chunk = text_chunk.replace("`", "F").upper()
 
-            # Assign text data straight into its raw hex coordinate position
+            # Store in screen dictionary memory
             self.virtual_screen[lead_byte] = text_chunk
             
-            # Real-Time Layout Logger
-            print("\n--- Current Virtual Display ---")
-            for addr in sorted(self.virtual_screen.keys()):
-                print(f"ADDR 0x{addr:02X}: '{self.virtual_screen[addr]}'")
-            print("--------------------------------\n")
+            # Trigger main menu parsing ONLY when the definitive final row lands
+            if lead_byte == 130:
+                print("\n Main Temperature Stream Complete! Parsing home view...")
+                for addr in sorted(self.virtual_screen.keys()):
+                    print(f"  ADDR 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
+                print("-----------------------------------------------\n")
 
-            # Fire off our upgraded content interpreter
-            self._parse_screen_matrix()
+                self._parse_screen_matrix()
+            return
+
+        # --- ACTION 3: PROTOCOL END-OF-SEQUENCE TERMINATOR (0x02) ---
+        # The master sends cmd 0x02 right after the last EQUIPMENT STATUS msg_long finishes
+        if dest == 0x60 and cmd == 0x02:
+            self.touch()
+            
+            # Only trigger parser if an equipment menu is currently staged in buffer memory
+            is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
+            
+            if is_equipment_status:
+                print("\n Protocol 0x02 Terminator Frame Received! Processing equipment stats...")
+                
+                # Visual verification printout of exactly what we're handing off
+                print("--- Current Staged Equipment Matrix Layout ---")
+                for addr in sorted(self.virtual_screen.keys()):
+                    print(f"  ADDR 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
+                print("-----------------------------------------------\n")
+                
+                # Run the interpreter across the complete layout data block
+                self._parse_screen_matrix()
 
 
     def _parse_screen_matrix(self):
@@ -157,31 +178,29 @@ class PoolState:
         # SCREEN TYPE B: DYNAMIC MAIN HOME VIEW
         # =====================================================================
         else:
-            # Safely fetch known base components or fallback to empty strings
             l2_labels = self.virtual_screen.get(0x01, "")
-            l3_values = self.virtual_screen.get(0x82, "")
-            l4_footer = self.virtual_screen.get(0x04, "")
+            l3_values = self.virtual_screen.get(0x82, "")  # e.g., "68F     76F"
 
-            # Air Temperature parsing via index matching
-            if "AIR" in l2_labels:
-                air_idx = l2_labels.find("AIR")
-                air_match = re.search(r"(\d+)\s*F", l3_values[air_idx : air_idx + 10])
-                if air_match: 
+            if l3_values:
+                # 1. Slice the left half of the display buffer for Air Temp
+                left_half = l3_values[:8]
+                air_match = re.search(r"(\d+)\s*F", left_half)
+                if air_match:
                     self.air_temp_f = int(air_match.group(1))
 
-            # Pool Temperature tracking
-            if "POOL" in l2_labels:
-                pool_idx = l2_labels.find("POOL")
-                pool_match = re.search(r"(\d+)\s*F", l3_values[pool_idx : pool_idx + 10])
-                if pool_match: 
-                    self.pool_temp_f = int(pool_match.group(1))
-
-            # Spa Temperature tracking
-            if "SPA" in l2_labels:
-                spa_idx = l2_labels.find("SPA")
-                spa_match = re.search(r"(\d+)\s*F", l3_values[spa_idx : spa_idx + 10])
-                if spa_match: 
-                    self.spa_temp_f = int(spa_match.group(1))
+                # 2. Slice the right half of the display buffer for Water Temp
+                right_half = l3_values[8:]
+                water_match = re.search(r"(\d+)\s*F", right_half)
+                
+                if water_match:
+                    water_temp = int(water_match.group(1))
+                    
+                    # Check labels context to see if this number belongs to POOL or SPA
+                    if "SPA" in l2_labels:
+                        self.spa_temp_f = water_temp
+                    else:
+                        # Default to pool temp if spa mode isn't explicitly on screen
+                        self.pool_temp_f = water_temp
 
             # Home-screen operational mode decoders
             if "POOL MODE" in status_block:
@@ -211,12 +230,10 @@ class PoolState:
             "spa_temp_f": self.spa_temp_f,
             "pool_setpoint_f": self.pool_setpoint_f,
             "spa_setpoint_f": self.spa_setpoint_f,
-            
             "salt_ppm": self.salt_ppm,
             "aquapure_percent": self.aquapure_percent,
             "filter_rpm": self.filter_rpm,
             "filter_watts": self.filter_watts,
-            
             "filter_pump_on": self.filter_pump_on,
             "aux_pump_on": self.aux_pump_on,
             "heater_on": self.heater_on,

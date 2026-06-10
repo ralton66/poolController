@@ -22,11 +22,11 @@ SPDX-License-Identifier: MPL-2.0
 
         <section class="status-bar" id="connection-bar">
             <span id="connection-text">Connecting…</span>
-            <span id="mode-badge" class="badge badge-off">OFF</span>
+            
         </section>
 
         <main class="dashboard">
-            <section class="card readings">
+             <section class="card readings">
                 <h2>Temperatures</h2>
                 <div class="grid">
                     <div class="metric">
@@ -51,39 +51,46 @@ SPDX-License-Identifier: MPL-2.0
                     </div>
                 </div>
             </section>
+            <section class="card controls">
+                <h2>Controls</h2>
+                
+                <div class="control-row buttons">
+                    <button type="button" id="filter-on-btn">Pool</button>
+                    <button type="button" id="spa-on-btn">Spa</button>
+                    <button type="button" id="pool-lights-btn">Pool Lights</button>
+                    <button type="button" id="spa-lights-btn">Spa Lights</button>
+                    <button type="button" id="all-off-btn" class="danger">All off</button>
+                </div>
+                <div class="control-row">
+                    <label for="spa-temp-input">Spa temp (°F)</label>
+                    <input type="number" id="spa-temp-input" min="80" max="104" value="102">
+                    
+                </div>
+                <div class="control-row">
+                    <label for="pool-temp-input">Pool temp (°F)</label>
+                    <input type="number" id="pool-temp-input" min="60" max="101" value="91">
+                </div>
+                 <div class="control-row">
+                    <label for="filter-rpm-input">Filter RPM</label>
+                    <input type="number" id="filter-rpm-input" min="0" max="3450" value="1200" step="50">
+                </div>
+            </section>
 
+            
             <section class="card equipment">
                 <h2>Equipment</h2>
                 <ul class="equip-list">
                     <li>Filter pump: <strong id="filter-state">—</strong></li>
                     <li>Aux / jets: <strong id="aux-state">—</strong></li>
                     <li>Heater: <strong id="heater-state">—</strong></li>
-                    <li>Valve: <strong id="valve-state">—</strong></li>
                     <li>Pool light: <strong id="pool-light-state">—</strong></li>
                     <li>Spa light: <strong id="spa-light-state">—</strong></li>
-                    <li>SWG: <strong id="swg-state">—</strong></li>
+                    <li>RPM: <strong id="filter-rpm-input">—</strong></li>
+                    <li>SWG: <strong id="swg-percent">—</strong></li>
+                    <li>Salt: <strong id="swg-ppm">—</strong></li>
                 </ul>
             </section>
-
-            <section class="card controls">
-                <h2>Controls</h2>
-                <div class="control-row">
-                    <label for="spa-temp-input">Spa temperature (°F)</label>
-                    <input type="number" id="spa-temp-input" min="80" max="104" value="102">
-                    <button type="button" id="spa-on-btn">Spa on</button>
-                </div>
-                <div class="control-row">
-                    <label for="filter-rpm-input">Filter RPM</label>
-                    <input type="number" id="filter-rpm-input" min="0" max="3450" value="1200" step="50">
-                    <button type="button" id="filter-on-btn">Pool filter</button>
-                </div>
-                <div class="control-row buttons">
-                    <button type="button" id="lights-on-btn">Lights on</button>
-                    <button type="button" id="lights-off-btn">Lights off</button>
-                    <button type="button" id="all-off-btn" class="danger">All off</button>
-                </div>
-            </section>
-
+           
             <section class="card debug-panel" id="debug-panel" style="display: none;">
                 <h2>Protocol debug</h2>
                 <textarea id="protocolOutput" rows="8" readonly></textarea>
