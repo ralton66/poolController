@@ -138,6 +138,7 @@ def pda_parse(hex_str):
     elif dest_byte == 0x00:
         if cmd_byte == 0x01:
             parsed_cmd = "ACK"
+            sub_line = f":"
             interpreted_data = "Empty ACK"  # Default fallback if data_bytes is empty
             
             if len(data_bytes) > 0:
@@ -173,7 +174,7 @@ def pda_parse(hex_str):
                     interpreted_data = f"0x{data_bytes.hex().upper()}"
 
     # 5. Build and return the comma-separated string
-    # Format: Dir, Dest, Parsed Command, Sub/Line, Interpreted Data Payload, Checksum
-    csv_row = f"{direction},{dest_name},{parsed_cmd},{sub_line},{interpreted_data},{checksum_status},{hex_str}"
+    # Format: Dir, Parsed Command, Sub/Line, Interpreted Data Payload, Checksum
+    csv_row = f"{direction},{parsed_cmd},{sub_line},{interpreted_data},{checksum_status},{hex_str}"
 
     return csv_row

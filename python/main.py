@@ -123,7 +123,6 @@ def on_get_protocol_state(client, data):
 
 led_is_on = False
 
-
 def get_led_status():
     return {
         "led_is_on": led_is_on,
@@ -157,9 +156,8 @@ if TEST_LED:
     ui.on_message("toggle_led", toggle_led_state)
 
 controller.start()
-#test_mode = TestModeService(monitor)
-#test_mode.start()
 #if cloud_enabled():
+#    print("Cloud Enabled")
 #    cloud_sync.start()
 
 App.run()

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import cmd
+import time
 import cmd
 import threading
 from typing import Callable
@@ -38,11 +38,13 @@ class PoolMonitor:
         try:
             #self.bridge.log_rx_payload(hex_payload)
             frame = decode_payload(hex_to_bytes(hex_payload))
-            parsed = parse_packet(frame)
-            if frame.dest == 0x60:
+            #if frame.dest == 0x60 or frame.dest == 0x00:
+            #    self.bridge.log_rx_payload(hex_payload)
+            if frame.dest == 0x8880:
                 if self.sm.state == ControlState.IDLE:
-                    
+                    #time to here is critical to respond to master
                     active_cmd = self.check_queue()
+                    parsed = parse_packet(frame)
                     if active_cmd is not None:
                         #print("PoolMonitor: Active command found:", active_cmd)
                         self.sm.check_cmd(active_cmd)
@@ -55,11 +57,13 @@ class PoolMonitor:
                     self.pc._queue.task_done()  
                     self.sm.reset_clicks_remaining = self.sm.reset_clicks_total
                     self.sm.state = ControlState.IDLE
-
+                
             with self._lock:
                 self.state.apply_parsed(parsed, hex_payload)
                 self.state.last_error = None
             self._notify()
+            self.bridge.log_rx_payload(hex_payload)
+            time.sleep(0.2)
         except Exception as e:
             with self._lock:
                 self.state.last_error = str(e)
@@ -77,8 +81,17 @@ class PoolMonitor:
         if cmd is not None:
             return cmd       
         else:   
-            wire = encode_wire(0x00, 0x01, b"\x00\x00") 
+
+            # Keep Alive Packet
+            #PDA_KA = b"\x10\x02\x00\x50\x00\x10\x03"
+    
+            # Acknowledge Packet
+            #PDA_ACK = b"\x10\x02\x00\x01\x50\x00\x63\x10\x03"
+
+            wire = encode_wire(0x00, 0x01, b"\x50\x00") 
             self.bridge.send_wire_bytes(wire)
+            #print("PoolMonitor: No command in queue, sent keep-alive packet")
+            #time.sleep(0.2)
         return cmd
 
     def get_snapshot(self) -> dict:

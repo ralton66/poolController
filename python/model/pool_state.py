@@ -30,7 +30,7 @@ class PoolState:
         self.spa_setpoint_f: int | None = None
         
         self.salt_ppm: int | None = None
-        self.aquapure_percent: int | None = None
+        self.swg_percent: int | None = None
         self.filter_rpm: int | None = None
         self.filter_watts: int | None = None
         
@@ -143,7 +143,7 @@ class PoolState:
             if "AQUAPURE" in status_block:
                 ap_match = re.search(r"AQUAPURE\s*(\d+)\s*%", status_block)
                 if ap_match: 
-                    self.aquapure_percent = int(ap_match.group(1))
+                    self.swg_percent = int(ap_match.group(1))
 
             # 2. Parse SWG Salt Level (e.g., "SALT 3100 PPM")
             if "SALT" in status_block:
@@ -157,10 +157,6 @@ class PoolState:
                 rpm_match = re.search(r"RPM:\s*(\d+)", status_block)
                 if rpm_match: 
                     self.filter_rpm = int(rpm_match.group(1))
-                    self.filter_pump_on = self.filter_rpm > 0
-            elif "FILTER PUMP" in status_block:
-                # Fallback flag if pump line is visible but speed info hasn't cycled in yet
-                self.filter_pump_on = True
 
             # 4. Parse Electrical Load draw (e.g., "WATTS: 326")
             if "WATTS" in status_block:
@@ -207,11 +203,13 @@ class PoolState:
                 self.mode = PoolMode.POOL if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block else self.mode
                 if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block:
                     self.filter_pump_on = True
-                    
+                    print("PoolMonitor: Pool mode is on, filter pump enabled.")
+
             if "SPA MODE" in status_block:
                 self.mode = PoolMode.SPA if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block else self.mode
                 if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block:
                     self.filter_pump_on = True
+                    print("PoolMonitor: Spa mode is on, filter pump enabled.")
                     
             if "ALL OFF" in status_block:
                 self.mode = PoolMode.OFF
@@ -231,7 +229,7 @@ class PoolState:
             "pool_setpoint_f": self.pool_setpoint_f,
             "spa_setpoint_f": self.spa_setpoint_f,
             "salt_ppm": self.salt_ppm,
-            "aquapure_percent": self.aquapure_percent,
+            "swg_percent": self.swg_percent,
             "filter_rpm": self.filter_rpm,
             "filter_watts": self.filter_watts,
             "filter_pump_on": self.filter_pump_on,
@@ -248,4 +246,15 @@ class PoolState:
             "last_packet": dict(self.last_packet) if self.last_packet else {},
             
             "display": export_display
+        }
+
+    def cloud_read_dict(self) -> dict[str, Any]:
+        """Subset exposed as Cloud read properties (AC-12)."""
+        d = self.to_dict()
+        return {
+            "pool_temp_f": d.get("pool_temp_f"),
+            "spa_temp_f": d.get("spa_temp_f"),
+            "mode": d.get("mode", "off"),
+            "filter_pump_on": d.get("filter_pump_on", False),
+            "filter_rpm": d.get("filter_rpm"),
         }

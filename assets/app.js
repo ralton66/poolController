@@ -11,13 +11,15 @@ const els = {
     spaTemp: document.getElementById('spa-temp'),
     poolSet: document.getElementById('pool-set'),
     spaSet: document.getElementById('spa-set'),
-    filterState: document.getElementById('filter-state'),
+    filterPumpOn: document.getElementById('filter-pump-on'),
     auxState: document.getElementById('aux-state'),
     heaterState: document.getElementById('heater-state'),
     poolLightState: document.getElementById('pool-light-state'),
     spaLightState: document.getElementById('spa-light-state'),
-    swgPercentInput: document.getElementById('swg-percent'),
-    filterWattsInput: document.getElementById('filter-watts'),
+    swgPercent: document.getElementById('swg-percent'),
+    saltPpm: document.getElementById('salt-ppm'),
+    filterRpm: document.getElementById('filter-rpm'),
+    filterWatts: document.getElementById('filter-watts'),
     spaTempInput: document.getElementById('spa-temp-input'),
     poolTempInput: document.getElementById('pool-temp-input'),
     filterRpmInput: document.getElementById('filter-rpm-input'),
@@ -97,15 +99,15 @@ function applyState(s) {
     els.spaTemp.textContent = fmtTemp(s.spa_temp_f);
     els.poolSet.textContent = fmtTemp(s.pool_setpoint_f);
     els.spaSet.textContent = fmtTemp(s.spa_setpoint_f);
-    els.filterState.textContent = formatPump(s.filter_pump_on);
+    els.filterPumpOn.textContent = fmtBool(s.filter_pump_on);
     els.auxState.textContent = fmtBool(s.aux_pump_on);
     els.heaterState.textContent = fmtBool(s.heater_on);
     els.poolLightState.textContent = fmtBool(s.pool_light_on);
     els.spaLightState.textContent = fmtBool(s.spa_light_on);
-    els.filterWattsInput.textContent = fmtWatts(s.filter_watts);
-    els.filterRpmInput.textContent = fmtRPM(s.filter_rpm);
-    els.swgPpmInput.textContent = fmtPPM(s.salt_ppm);
-    els.aquapurePercentInput.textContent = fmtPercent(s.aquapure_percent);
+    els.filterWatts.textContent = fmtWatts(s.filter_watts);
+    els.filterRpm.textContent = fmtRPM(s.filter_rpm);
+    els.saltPpm.textContent = fmtPPM(s.salt_ppm);
+    els.swgPercent.textContent = fmtPercent(s.swg_percent);
 
     if (s.undefined_state) {
         showError('Undefined pool state — reset recommended.');
@@ -157,12 +159,6 @@ function fmtPPM(v) {
 function fmtBool(v) {
     if (v == null) return '—';
     return v ? 'On' : 'Off';
-}
-
-function formatPump(on, rpm) {
-    if (on == null && rpm == null) return '—';
-    if (rpm != null) return on ? `${rpm} RPM` : 'Off';
-    return fmtBool(on);
 }
 
 function showError(msg) {
