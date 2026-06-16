@@ -20,11 +20,6 @@ try:
 except ImportError:
     ArduinoCloud = None  # type: ignore
 
-
-def cloud_enabled() -> bool:
-    return os.environ.get("POOL_CLOUD", "1") == "1" and ArduinoCloud is not None
-
-
 class CloudSync:
     """Map PoolState ↔ Cloud Thing properties; writes enqueue controller commands."""
 
@@ -44,8 +39,8 @@ class CloudSync:
         if not cloud_enabled():
             return
         self._cloud = ArduinoCloud()
-        self._register_properties()
-        self.push_state()
+        #self._register_properties()
+        #self.push_state()
 
     def _register_properties(self) -> None:
         c = self._cloud

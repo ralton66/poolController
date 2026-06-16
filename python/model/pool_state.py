@@ -47,6 +47,7 @@ class PoolState:
         # Watchdog Tracking
         self.last_update: float = 0.0
         self.connection_ok: bool = False
+        self.screen_clr: bool = False
         self.last_packet: dict[str, Any] = {}
 
     def touch(self) -> None:
@@ -71,6 +72,7 @@ class PoolState:
         if dest == 0x60 and cmd == 0x09:
             self.touch()
             self.virtual_screen.clear()
+            self.screen_clr = True
             return
 
         # --- ACTION 2: DATA STREAM GATHERING ---
@@ -101,31 +103,38 @@ class PoolState:
             if lead_byte == 130:
                 print("\n Main Temperature Stream Complete! Parsing home view...")
                 for addr in sorted(self.virtual_screen.keys()):
-                    print(f"  ADDR 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
+                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
                 print("-----------------------------------------------\n")
 
                 self._parse_screen_matrix()
+                self.screen_clr = False
             return
 
         # --- ACTION 3: PROTOCOL END-OF-SEQUENCE TERMINATOR (0x02) ---
         # The master sends cmd 0x02 right after the last EQUIPMENT STATUS msg_long finishes
         if dest == 0x60 and cmd == 0x02:
+
+            # Screen has alread been written so return and wait for a screen clear
+            if not self.screen_clr:
+                return
+
             self.touch()
             
             # Only trigger parser if an equipment menu is currently staged in buffer memory
             is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
             
-            if is_equipment_status:
+            if is_equipment_status and self.screen_clr:
                 print("\n Protocol 0x02 Terminator Frame Received! Processing equipment stats...")
                 
                 # Visual verification printout of exactly what we're handing off
                 print("--- Current Staged Equipment Matrix Layout ---")
                 for addr in sorted(self.virtual_screen.keys()):
-                    print(f"  ADDR 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
+                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
                 print("-----------------------------------------------\n")
                 
                 # Run the interpreter across the complete layout data block
                 self._parse_screen_matrix()
+                self.screen_clr = False
 
 
     def _parse_screen_matrix(self):
@@ -200,14 +209,15 @@ class PoolState:
 
             # Home-screen operational mode decoders
             if "POOL MODE" in status_block:
-                self.mode = PoolMode.POOL if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block else self.mode
-                if "POOL MODE  ON" in status_block or "POOL MODE ON" in status_block:
+
+                self.mode = PoolMode.POOL if "POOL MODE     ON" in status_block else self.mode
+                if "POOL MODE     ON" in status_block in status_block:
                     self.filter_pump_on = True
                     print("PoolMonitor: Pool mode is on, filter pump enabled.")
 
             if "SPA MODE" in status_block:
-                self.mode = PoolMode.SPA if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block else self.mode
-                if "SPA MODE  ON" in status_block or "SPA MODE ON" in status_block:
+                self.mode = PoolMode.SPA if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block else self.mode
+                if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block:
                     self.filter_pump_on = True
                     print("PoolMonitor: Spa mode is on, filter pump enabled.")
                     

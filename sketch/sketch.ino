@@ -11,8 +11,13 @@
 #define MAX_PKT 256
 
 // Set to 1 to expose set_led_state Bridge RPC (Linux Blink demo)
-#ifndef POOL_TEST_LED
-#define POOL_TEST_LED 0
+#ifndef TEST_LED
+#define TEST_LED 1
+#endif
+
+// Set to 1 to expose set_led_state Bridge RPC (Linux Blink demo)
+#ifndef TEST_CLOUD
+#define TEST_CLOUD 1
 #endif
 
 uint8_t packetBuffer[MAX_PKT];
@@ -54,9 +59,6 @@ static int hexNibble(char c) {
     return -1;
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 // Panel / AllButton destinations used in bench fixtures
 const uint8_t DEST_PANEL = 0x00;
 const uint8_t CMD_STATUS = 0x04;
@@ -64,13 +66,6 @@ const uint8_t CMD_STATUS = 0x04;
 // Max expected packets inside a single command buffer to prevent memory fragmentation
 const uint8_t MAX_PACKET_COUNT = 8; 
 const uint8_t MAX_PACKET_LEN   = 24; 
-
-// 2. Replaces ControlState Enum
-enum class ControlState {
-    SEND_PKTS,
-    STATE_RESET,
-    IDLE
-};
 
 /**
  * Processes incoming bytes, steps the state machine, and orchestrates line responses.
@@ -80,7 +75,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
     if (raw_bytes == nullptr || length == 0) {
         return; 
     }
-    if (1) {
+    if (0) {
         if((raw_bytes[0] == 0x60) && (raw_bytes[1] != 0x00)) 
             //parseJandyDisplayPacket(raw_bytes, length);
             printPacketBuffer(raw_bytes, length);
@@ -89,39 +84,38 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
         return;
     }
 
-
-    // PDA destination Rx'ed
+     // PDA destination Rx'ed
     if (raw_bytes[0] == 0x60) {
        
         switch (raw_bytes[1]){
             case 0x00: // Initial Connect
                 pdaConnected = true;
-                delay(10);
-
+                delay(15);
                 rs485WriteRaw(PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                Monitor.println(F("Received PDA Connect"));
+                //Monitor.println(F("Received PDA Connect"));
                 break;
             case 0x02: // Keep Alive
                 if(raw_bytes[2] == 0x32){ // Master Probe
                     rs485WriteRaw(PKT_PDA_ACK, sizeof(PKT_PDA_ACK));
-                    Monitor.println(F("Received PKT_PDA_ID_REV32"));
+                    //Monitor.println(F("Received PKT_PDA_ID_REV32"));
                 }
                 else if(raw_bytes[2] == 0x28) {
                     rs485WriteRaw(PKT_PDA_ACK, sizeof(PKT_PDA_ACK));
-                    Monitor.println(F("Received 0228"));
+                    //Monitor.println(F("Received 0228"));
                 }
                 break;
-            case 0x04: // Status Update?
+            case 0x04: // Long Message
                 rs485WriteRaw(PKT_PDA_ACK, sizeof(PKT_PDA_ACK));
-                Monitor.println(F("Received MSG LONG"));
+                //Monitor.println(F("Received MSG LONG"));
                 break;
             case 0x08: 
                 rs485WriteRaw(PKT_PDA_ACK, sizeof(PKT_PDA_ACK));
-                Monitor.println(F("Received PDA 0x08"));
+                //Monitor.println(F("Received PDA 0x08"));
                 break;
             case 0x09: 
                 rs485WriteRaw(PKT_PDA_VER, sizeof(PKT_PDA_VER));
-                Monitor.println(F("Received PDA 0x09"));
+
+                //Monitor.println(F("Received PDA 0x09"));
                 break;
             case 0x1B: // Screen UI Layer Sync / Menu Token
             {
@@ -139,17 +133,19 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 };
                 rs485WriteRaw(PKT_PDA_CS, sizeof(PKT_PDA_CS));
                 //rs485WriteRaw(pkt_context_echo, sizeof(pkt_context_echo));
-                Monitor.print(F("Received PDA 0x1B (Context Sync): "));
-                printPacketBuffer(pkt_context_echo, sizeof(pkt_context_echo));
+                //Monitor.print(F("Received PDA 0x1B (Context Sync): "));
+                //printPacketBuffer(pkt_context_echo, sizeof(pkt_context_echo));
                 break;
             }
         }
-        printPacketBuffer(raw_bytes, length);
+
+        //Send packet to MPU
+        bytesToHex(packetBuffer, pIdx, hexBuffer);
+        Bridge.notify("pda_packet", hexBuffer);  
+    
+        //printPacketBuffer(raw_bytes, length);
     }
 }
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////
 
 void parseJandyDisplayPacket(const unsigned char *packet, size_t packetLen) {
     if (packetLen < 4) return;
@@ -353,14 +349,6 @@ void rs485SendHex(const char* hex) {
     }
 }
 
-void injectTestPacket() {
-    uint8_t mockData[] = {0x08, 0x04, 0x41, 0x49, 0x52, 0x20, 0x54, 0x45,
-                          0x4D, 0x50, 0x20, 0x37, 0x35, 0x46, 0x10};
-    memcpy(packetBuffer, mockData, sizeof(mockData));
-    pIdx = sizeof(mockData);
-    packetReady = true;
-}
-
 void rs485_tx(String hex) {
     rs485SendHex(hex.c_str());
     Monitor.print("RS485 TX ");
@@ -393,11 +381,12 @@ void loop() {
         // If a full packet has been received and validated, process it
         if (packetReady) {
             handle_packet(packetBuffer, pIdx);    
-            
-          //Monitor.print("RS485 RX: ");
-          //Monitor.println(hexBuffer);
-          packetReady = false;
-          pIdx = 0;
+
+
+            //Monitor.print("RS485 RX: ");
+            //Monitor.println(hexBuffer);
+            packetReady = false;
+            pIdx = 0;
         }  
     }
 

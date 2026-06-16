@@ -14,14 +14,15 @@ from arduino.app_bricks.web_ui import WebUI
 from arduino.app_utils import App, Bridge
 
 from bridge.client import get_client
-from cloud.arduino_sync import CloudSync, cloud_enabled
+from cloud.arduino_sync import CloudSync
 from model.pool_state import PoolState
 from services.controller import PoolController
 from services.monitor import PoolMonitor, StateMachine, ControlState
 from services.test_mode import TestModeService, is_test_mode
 
-TEST_LED = os.environ.get("TEST_LED", "0") == "1"
-DEBUG_PROTOCOL = os.environ.get("DEBUG_PROTOCOL", "0") == "1"
+TEST_LED = True
+TEST_CLOUD = True
+DEBUG_PROTOCOL = False
 
 PKT_PDA_SELECT = bytes([
     0x10, 0x02, 0x00, 0x01, 0x50, 0x04, 0x67, 0x10, 0x03
@@ -64,7 +65,7 @@ def on_get_state(client, data):
 def on_get_initial_state(client, data):
     on_get_state(client, data)
     if TEST_LED:
-        ui.send_message("led_status_update", get_led_status(), client)
+        print("led_status_update")
 
 
 def on_set_spa(client, data):
@@ -147,17 +148,12 @@ ui.on_message("set_lights", on_set_lights)
 ui.on_message("all_off", on_all_off)
 ui.on_message("reset", on_reset)
 
-if DEBUG_PROTOCOL:
-    ui.on_message("get_protocol_state", on_get_protocol_state)
-    ui.on_message("send_test_tx", on_send_test_tx)
-    ui.on_message("inject_test_rx", on_inject_test_rx)
-
 if TEST_LED:
     ui.on_message("toggle_led", toggle_led_state)
 
 controller.start()
-#if cloud_enabled():
-#    print("Cloud Enabled")
-#    cloud_sync.start()
+
+if TEST_CLOUD:
+    cloud_sync.start()
 
 App.run()
