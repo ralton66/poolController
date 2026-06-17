@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Callable
 from model.pool_state import PoolMode, PoolState
 from model.commands import CommandType
 from model.commands import Command
+from bridge.client import BridgeClient
 
 if TYPE_CHECKING:
     from services.controller import PoolController
@@ -26,21 +27,31 @@ class CloudSync:
     def __init__(
         self,
         state: PoolState,
+        bridge: BridgeClient,
         controller: PoolController,
         on_state_push: Callable[[dict], None] | None = None,
     ):
         self.state = state
+        self.bridge = bridge
         self.controller = controller
         self._on_state_push = on_state_push
         self._cloud = None
         self._vars: dict = {}
 
     def start(self) -> None:
-        if not cloud_enabled():
+        try:
+            self._cloud = ArduinoCloud()
+        except (TypeError, ValueError):
             return
-        self._cloud = ArduinoCloud()
-        #self._register_properties()
+        self._register_properties()
         #self.push_state()
+
+    def led_callback(self, client: object, value: bool):
+        """Callback function to handle LED blink updates from cloud."""
+        print(f"LED blink value updated from cloud: {value}")
+        # Call a function in the sketch, using the Bridge helper library, to control the state of the LED connected to the microcontroller.
+        # This performs a RPC call and allows the Python code and the Sketch code to communicate.
+        self.bridge.toggle_led(value)
 
     def _register_properties(self) -> None:
         c = self._cloud
@@ -69,16 +80,18 @@ class CloudSync:
         def lights_write(_client, value):
             on = value in (True, 1, "1", "true", "on")
             self.controller.set_lights(on, "pool")
+        c.register("LED", value=False, on_write=self.led_callback)
 
         c.register("pool_temp_f", value=0)
-        c.register("spa_temp_f", value=0)
-        c.register("mode", value="off", on_write=mode_write)
-        c.register("filter_pump_on", value=False)
-        c.register("filter_rpm", value=0)
-        c.register("spa_target_f", value=102, on_write=spa_target_write)
-        c.register("lights_on", value=False, on_write=lights_write)
+        c.register("air_temp_f", value=0)
+        #c.register("mode", value="off", on_write=mode_write)
+        #c.register("filter_pump_on", value=False)
+        #c.register("filter_rpm", value=0)
+        #c.register("spa_target_f", value=102, on_write=spa_target_write)
+        #c.register("lights_on", value=False, on_write=lights_write)
         self._read_keys = (
             "pool_temp_f",
+            "air_temp_f",
             "spa_temp_f",
             "mode",
             "filter_pump_on",

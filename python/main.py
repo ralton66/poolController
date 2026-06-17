@@ -49,7 +49,7 @@ def on_state_updated(_state: PoolState):
 controller = PoolController(bridge, pool_state, on_tx=lambda h: ui.send_message("protocol_tx", {"hex": h}))
 
 monitor = PoolMonitor(pool_state, bridge, controller, sm, on_update=on_state_updated)
-cloud_sync = CloudSync(pool_state, controller, on_state_push=lambda _: broadcast_state())
+cloud_sync = CloudSync(pool_state, bridge, controller, on_state_push=lambda _: broadcast_state())
 
 
 def on_pda_packet(hex_payload: str):

@@ -42,6 +42,9 @@ class BridgeClient:
         """Ask MCU to inject bench RX (sketch test fixture)."""
         Bridge.call("inject_test_packet")
 
+    def toggle_led(self, value: bool) -> None:
+        Bridge.notify("set_led_state", value)
+
     def log_rx_payload(self, hex_payload: str) -> None:
         csv_line = pda_parse(hex_payload)
         #if hex_payload[:4] in {"0012", "001F", "0020"}:

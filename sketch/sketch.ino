@@ -52,6 +52,12 @@ const uint8_t PKT_PDA_ID_STANDARD[] = { 0x10, 0x02, 0x00, 0x02, 0x46, 0x00, 0x00
 //const uint8_t poolKeyDown[] = {0x00, 0x12, 0x3C, 0x01, 0x00, 0x61};
 //const uint8_t poolKeyHold[] = {0x00, 0x12, 0x3C, 0x00, 0x60};
 
+void set_led_state(bool state) {
+    // LOW state means LED is ON
+    digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
+    Monitor.println("LED");
+}
+
 static int hexNibble(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
@@ -361,8 +367,10 @@ void setup() {
     pinMode(DE, OUTPUT);
     pinMode(RE, OUTPUT);
     rs485SetTransmit(false);
- 
+    pinMode(LED_BUILTIN, OUTPUT);
+
     Bridge.begin();
+    Bridge.provide("set_led_state", set_led_state);
     Bridge.provide("RS485_send", rs485_tx);
 
     delay(3000);
