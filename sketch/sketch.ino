@@ -81,7 +81,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
     if (raw_bytes == nullptr || length == 0) {
         return; 
     }
-    if (0) {
+    if (1) {
         if((raw_bytes[0] == 0x60) && (raw_bytes[1] != 0x00)) 
             //parseJandyDisplayPacket(raw_bytes, length);
             printPacketBuffer(raw_bytes, length);

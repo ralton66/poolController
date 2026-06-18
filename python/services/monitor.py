@@ -17,6 +17,8 @@ from protocol.pda_messages import parse_packet
 from services.controller import PoolController
 from model.commands import Command, CommandType, ControlState, StateMachine
 
+UPDATE_SECONDS = 30
+
 class PoolMonitor:
     def __init__(
         self,
@@ -31,6 +33,7 @@ class PoolMonitor:
         self.bridge = bridge
         self.pc = pc
         self.sm = sm
+        self.last_update: float = 0.0
         self._on_update = on_update
         self._lock = threading.Lock()
 
@@ -55,7 +58,13 @@ class PoolMonitor:
             return self.state.to_dict()
 
     def _notify(self) -> None:
-        if self._on_update:
-            self._on_update(self.state)
+        self.connection_ok = True
+
+        update_threshold = UPDATE_SECONDS if 'UPDATE_SECONDS' in globals() else 10
+        if time.time() - self.last_update > update_threshold:
+            self.last_update = time.time()
+            print(f"Update time: {self.last_update}")
+            if self._on_update:
+                self._on_update(self.state)
 
 

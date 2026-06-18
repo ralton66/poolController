@@ -262,8 +262,8 @@ class PoolState:
         """Subset exposed as Cloud read properties (AC-12)."""
         d = self.to_dict()
         return {
-            "pool_temp_f": d.get("pool_temp_f"),
-            "spa_temp_f": d.get("spa_temp_f"),
+            "water_temp_f": d.get("pool_temp_f"),
+            "air_temp_f": d.get("air_temp_f"),
             "mode": d.get("mode", "off"),
             "filter_pump_on": d.get("filter_pump_on", False),
             "filter_rpm": d.get("filter_rpm"),

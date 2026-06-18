@@ -80,37 +80,35 @@ class CloudSync:
         def lights_write(_client, value):
             on = value in (True, 1, "1", "true", "on")
             self.controller.set_lights(on, "pool")
-        c.register("LED", value=False, on_write=self.led_callback)
-
-        c.register("pool_temp_f", value=0)
+        
+        c.register("led", value=False, on_write=self.led_callback)
         c.register("air_temp_f", value=0)
+        c.register("water_temp_f", value=0)
         #c.register("mode", value="off", on_write=mode_write)
         #c.register("filter_pump_on", value=False)
         #c.register("filter_rpm", value=0)
         #c.register("spa_target_f", value=102, on_write=spa_target_write)
         #c.register("lights_on", value=False, on_write=lights_write)
         self._read_keys = (
-            "pool_temp_f",
+            "water_temp_f",
             "air_temp_f",
-            "spa_temp_f",
-            "mode",
-            "filter_pump_on",
-            "filter_rpm",
         )
+        
+        c.air_temp_f = 25
+        #c.water_temp_f = 85
 
     def _push_read(self, name: str, value) -> None:
         if value is None or not self._cloud:
             return
-        for fn in ("update", "set", "write"):
-            try:
-                getattr(self._cloud, fn)(name, value)
-                return
-            except (AttributeError, TypeError):
-                continue
+        c = self._cloud
+        print(f"Cloud sync: {name} -> {value}")
+
         try:
-            setattr(self._cloud, name, value)
-        except Exception:
-            pass
+            setattr(c, name, value)
+        except AttributeError:
+            print(f"ERROR: The variable '{name}' does not exist on your Arduino Cloud dashboard.")
+        except Exception as e:
+            print(f"Unexpected error syncing {name}: {e}")
 
     def on_state_changed(self, state: PoolState) -> None:
         if not self._cloud:
@@ -118,10 +116,11 @@ class CloudSync:
         snap = state.cloud_read_dict()
         for key in self._read_keys:
             val = snap.get(key)
+            #print(f"Cloud sync: {key} -> {val}")
             if val is not None:
                 self._push_read(key, val)
-        if self._on_state_push:
-            self._on_state_push(state.to_dict())
+        #if self._on_state_push:
+        #    self._on_state_push(state.to_dict())
 
     def push_state(self) -> None:
         self.on_state_changed(self.state)

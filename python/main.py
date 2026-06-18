@@ -59,6 +59,7 @@ def on_pda_packet(hex_payload: str):
 
 
 def on_get_state(client, data):
+    print("State Update")
     ui.send_message("state_update", monitor.get_snapshot(), client)
    
 
