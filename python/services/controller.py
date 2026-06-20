@@ -66,7 +66,7 @@ class PoolController:
 
     def pool_filter(self, rpm: int | None = None, preset: str | None = None) -> None:
         print("PoolController: pool_filter called with rpm:", rpm, "preset:", preset)
-        self.enqueue(Command(CommandType.POOL_FILTER, rpm, 101, ControlPackets.PDA_SELECT))
+        self.enqueue(Command(CommandType.POOL_FILTER, 1, rpm, 101, ControlPackets.PDA_SELECT))
 
     def all_off(self) -> None:
         print("PoolController: all_off called")
@@ -83,8 +83,7 @@ class PoolController:
     def _worker(self) -> None:
         while self._running:
             try:
-                cmd = None #self._queue.get(timeout=0.5)
-                print("Cmd rx'ed")
+                cmd = self._queue.get(timeout=0.5)
             except queue.Empty:
                 continue
             if cmd is None:
@@ -94,7 +93,8 @@ class PoolController:
                 self.enqueue(Command(type=CommandType.RESET))
 
     def _execute(self, cmd: Command) -> None:
-        print("PoolController: Executing command:", cmd)
+        print("controller: _execute (command type:)", cmd.type)
+        self.bridge.control_command(cmd.type)
         time.sleep(FRAME_GAP_S)
 
 

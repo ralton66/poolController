@@ -19,6 +19,14 @@ from protocol.jandy_frame import bytes_to_hex, decode_payload, encode_wire, hex_
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_LOG = _REPO_ROOT / "protocol.log"
 
+#Control Commands
+COMMAND_MAP = {
+    "spa_on": 0x01,       
+    "pool_filter": 0x02,
+    "all_off": 0x00,
+    "lights": 0x04,
+}
+
 
 class BridgeClient:
     def __init__(self, log_path: Path | None = None):
@@ -38,9 +46,10 @@ class BridgeClient:
         Bridge.notify("RS485_send", hex_wire)
         return hex_wire
 
-    def inject_test_packet(self) -> None:
-        """Ask MCU to inject bench RX (sketch test fixture)."""
-        Bridge.call("inject_test_packet")
+    def control_command(self, cmd: str) -> None:
+        print(f"client->control_command: {cmd}")
+        Bridge.notify("control_cmd", cmd)
+        
 
     def toggle_led(self, value: bool) -> None:
         Bridge.notify("set_led_state", value)

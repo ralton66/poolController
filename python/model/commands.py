@@ -24,16 +24,6 @@ class CommandType(str, Enum):
     STATUS_POLL = "status_poll"
 
 
-#@dataclass(frozen=True)
-#class Command:
-# #   type: CommandType
-#    temp_f: int | None = None
-#    rpm: int | None = None
-#    preset: str | None = None
-#    lights_on: bool | None = None
-#    light_target: str = "pool"
-
-
 class Command:
     def __init__(self, command_type, rpm: int = None, temp_f: int = None, *control_packets: bytes):
         self.type = command_type

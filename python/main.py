@@ -80,6 +80,7 @@ def on_set_spa(client, data):
 def on_set_filter(client, data):
     rpm = None
     preset = None
+    print("main: on_set_filter")
     if isinstance(data, dict):
         if "rpm" in data:
             try:
