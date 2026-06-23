@@ -62,11 +62,11 @@ class PoolController:
 
     def spa_on(self, temp_f: int) -> None:
         print("PoolController: spa_on called with temp_f:", temp_f)
-        #self.enqueue(Command(type=CommandType.SPA_ON, temp_f=temp_f))
+        self.enqueue(Command(CommandType.SPA_ON, temp_f))
 
     def pool_filter(self, rpm: int | None = None, preset: str | None = None) -> None:
         print("PoolController: pool_filter called with rpm:", rpm, "preset:", preset)
-        self.enqueue(Command(CommandType.POOL_FILTER, 1, rpm, 101, ControlPackets.PDA_SELECT))
+        self.enqueue(Command(CommandType.POOL_FILTER, rpm, 101, ControlPackets.PDA_SELECT))
 
     def all_off(self) -> None:
         print("PoolController: all_off called")

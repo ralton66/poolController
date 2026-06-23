@@ -8,12 +8,14 @@
 
 
 uint8_t packetBuffer[MAX_PKT];
+uint8_t highlighted_line = 0;
 char hexBuffer[MAX_PKT * 2 + 1];
 int pIdx = 0;
 int state = 0; // 0: Idle, 1: STX, 2: Data, 3: Escape/End
 int cmd_seq = 0; // control command sequencing based on master responses
 bool packetReady = false;
-bool pdaConnected = false;
+bool pdaConnecting = false;
+bool pdaSynced = false;
 
 enum Command {
     CMD_UNKNOWN,
@@ -23,10 +25,22 @@ enum Command {
     CMD_SPA,
     CMD_SPA_HTR,
     CMD_SPA_LIGHT,
-    CMD_ALL_OFF
+    CMD_ALL_OFF,
+    CMD_INSEQ
 };
 
 Command control_command = CMD_UNKNOWN;
+
+uint8_t pkt_rsp[] = { 
+                0x10, 0x02, 
+                0x00,               
+                0x01, // Command (Context ACK)
+                0xD0,              
+                0x00,               
+                0xE3, 
+                0x10, 0x03          
+            };
+
 
 void set_led_state(bool s) {
     // LOW state means LED is ON
@@ -47,9 +61,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
     const uint8_t* ack_ptr = NULL;
     uint8_t rsp_len = 0;
     uint8_t token = 0;
-    uint8_t contextChecksum = 0;
-    uint8_t pkt_select[9];
-
+    
     #ifdef PKT_LOG_ONLY
         //if((raw_bytes[0] == 0x60) && (raw_bytes[1] != 0x00)) 
         //if((raw_bytes[0] == 0x60) ) 
@@ -63,117 +75,196 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
         printPacketBuffer(Monitor, raw_bytes, length);
 
         // PDA destination Rx'ed
+        //pkt_rsp[3] = 0x01; // response ACK
         if (raw_bytes[0] == 0x60) {
-            //if(raw_bytes[2] == 0x00)
-            //    ack_ptr = PKT_PDA_ACK_SHORT;
-            //else
-            //    ack_ptr = PKT_PDA_ACK;
-                    // 1. Grab whatever token the master threw at us (0x00, 0x04, 0x0B, etc.)
-             
-            if(raw_bytes[2] == 0x00)
-                token = 0xD0;
-            else
-                token = 0x50;
-            contextChecksum = 0x12 + 0x01 + token; // Checksum includes the command and token, plus the fixed 0x12
-            uint8_t pkt_rsp[] = { 
-                0x10, 0x02,         // STX
-                0x00,               // Destination (Master)
-                0x01,               // Command (Context ACK)
-                token,              // The Echoed Token (Dynamically scales to 0x00 or any value)
-                0x00,               // Padding
-                contextChecksum,    // Calculated Checksum (Will be 0x2C when token is 0x00)
-                0x10, 0x03          // ETX
-            };
+            if(raw_bytes[1] == 0x08)
+                highlighted_line = raw_bytes[2];
 
             //Check Control Inputs
-            if(control_command != CMD_UNKNOWN)
-            {
+            if(control_command != CMD_UNKNOWN) {
                 switch(control_command){
                     case CMD_POOL: {
-                        contextChecksum = 0x12 + 0x01 + 0x04 + token; // Checksum includes the command and token, plus the fixed 0x12
-                        // Assign the index positions explicitly
-                        pkt_select[0] = 0x10; // STX
-                        pkt_select[1] = 0x02; // STX
-                        pkt_select[2] = 0x00; // Destination
-                        pkt_select[3] = 0x01; // Command
-                        pkt_select[4] = token; 
-                        pkt_select[5] = 0x04; // Select Command
-                        pkt_select[6] = contextChecksum;
-                        pkt_select[7] = 0x10; // ETX
-                        pkt_select[8] = 0x03; // ETX
+                        if (highlighted_line == 4){ //Send Down command
+                            pkt_rsp[4] = 0xD0; // sync'd, PDA, key pressed
+                            pkt_rsp[5] = 0x04; // Select Command
+                            pkt_rsp[6] = 0x12 + 0x01 + 0x04 + pkt_rsp[4];
+                            rs485WriteRaw(pkt_rsp, 9);
+                            printPacketRsp(Monitor, pkt_rsp, 9);
 
-                        rs485WriteRaw(pkt_select, 9);
-                        printPacketRsp(Monitor, pkt_select, 9);
+                            //Monitor.print("CMD_POOL: send select");
+                            //Monitor.println(control_command);
+                            control_command = CMD_UNKNOWN;
+                            break;
+                        }else{
+                            pkt_rsp[4] = 0xD0; // sync'd, PDA, key pressed
+                            pkt_rsp[5] = 0x05; // DOWN Command
+                            pkt_rsp[6] = 0x12 + 0x01 + 0x05 + pkt_rsp[4];
+                            rs485WriteRaw(pkt_rsp, 9);
+                            printPacketRsp(Monitor, pkt_rsp, 9);
+                            break;
+                        }
+                    }
+                    case CMD_SPA: {
 
-                        rsp_len = 9;
-                        rsp_ptr = pkt_select;
-                        //Monitor.print("CMD_POOL: send select");
-                        //Monitor.println(control_command);
-                        control_command = CMD_UNKNOWN;
-                        break;
+                        if ((highlighted_line != 6) && (cmd_seq == 0)){ //Send Down command
+                            pkt_rsp[4] = 0xD0; // sync'd, PDA, key pressed
+                            pkt_rsp[5] = 0x05; // DOWN Command
+                            pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4] + pkt_rsp[5];
+                            rs485WriteRaw(pkt_rsp, 9);
+                            printPacketRsp(Monitor, pkt_rsp, 9);
+                            cmd_seq = 1;
+                            break;
+                        }
+                        else if((highlighted_line == 6) && (cmd_seq == 0)){
+                            pkt_rsp[4] = 0xD0; // sync'd, PDA, key pressed
+                            pkt_rsp[5] = 0x04; // SELECT Command
+                            pkt_rsp[6] = 0x12 + 0x01 + 0x04 + pkt_rsp[4];
+                            rs485WriteRaw(pkt_rsp, 9);
+                            printPacketRsp(Monitor, pkt_rsp, 9);
+                            cmd_seq == 0;
+                            control_command = CMD_UNKNOWN;
+                            break;
+                        }
+                        else if (cmd_seq >= 1){
+                            pkt_rsp[4] = 0xC0; //sync'ed/no keypress
+                            pkt_rsp[5] = 0x00; // no key 
+                            pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4]; // Checksum includes the command and token, plus the fixed 0x12
+                             rs485WriteRaw(pkt_rsp, 9);
+                            printPacketRsp(Monitor, pkt_rsp, 9);
+                            cmd_seq++;
+                            if(cmd_seq >= 5)
+                                cmd_seq = 0;
+                            break;
+                        }
                     }
                     default:
                         control_command = CMD_UNKNOWN;
                         break;
                 }
+                Monitor.print("Line selected: ");
+                Monitor.print(highlighted_line, HEX);
+                Monitor.print("Seq: ");
+                Monitor.println(cmd_seq, HEX);
+                
                 return;
             }
+          
+            /*
+            Bit,Hex Mask,Definition,Description for Byte 2 response
+            Bit 7,0x80,
+            Session Sync / Power State,
+            0 = Handshake / Wake-up phase (un-synced)
+            1 = Active session / Fully synchronized
 
+            Bit 6,0x40,
+            PDA Device Identifier,
+            Always 1 for PDA transceivers. 
+            Distinguishes it from standard hardwired keypads (which use 0x00).
 
+            Bit 5,0x20,
+            Reserved,
+            Always 0.
+
+            Bit 4,0x10,
+            Keypress Data Flag,
+            0 = Idle ACK (Byte 3 is empty/ignored) 
+            1 = Keypress active (Master must parse Byte 3)
+
+            Bits 3–0,0x0F,
+            Reserved / Unused,
+            Always 0 in this firmware generation.
+
+            Byte 3 from Master
+            0x00 (System Idle): No equipment relays are active, no heaters 
+            are engaged, and the system is in a baseline background state.
+
+            0x28 (0010 1000): Specific equipment flags are active. In the 
+            AquaLink RS architecture, this bit combination typically indicates 
+            that certain primary relays (like the Filter Pump or a specific 
+            auxiliary circuit) are energized, or the master is signaling a 
+            specific sub-menu state.
+
+            0xFF (1111 1111 - Broadcast / Sync Reset): This is a global 
+            status override. The master sends this during a cold boot, 
+            a soft reset, or when it loses track of device presence on 
+            the JBox transceiver loop. It is the master command for: 
+            "All display devices re-initialize, flush your screen caches, 
+            and declare your current state."
+            */
+
+            //Reply with simple keep alive for the first few packet acks
+            if(pdaConnecting){
+                rs485WriteRaw(PKT_PDA_KA, sizeof(PKT_PDA_KA));
+                printPacketRsp(Monitor, PKT_PDA_KA, 9);
+                cmd_seq++;
+                if(cmd_seq >= 3){
+                    pdaConnecting = false;
+                    cmd_seq = 0;
+                }
+                return;
+            }
+                        
+            // Configure basic ack packet based on request
+            if((raw_bytes[2] & 0x80) != 0){
+                pkt_rsp[4] = 0x40; //unsync'ed/no keypress
+                pkt_rsp[5] = 0x00; // no key
+            }else{
+                pkt_rsp[4] = 0xC0; //sync'ed/no keypress
+                pkt_rsp[5] = 0x00; // no key 
+            }
+            pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4]; // Checksum includes the command and token, plus the fixed 0x12
+
+            // determine ACK type and send
             switch (raw_bytes[1]){
                 case 0x00: // Initial Connect
-                    pdaConnected = true;
-                    delay(15);
-                    rsp_len = sizeof(pkt_rsp);
-                    rs485WriteRaw(pkt_rsp, rsp_len);
-                    rsp_ptr = pkt_rsp;
+                    pdaConnecting = true;
+                    rs485WriteRaw(PKT_PDA_KA, sizeof(PKT_PDA_KA));
+                    printPacketRsp(Monitor, PKT_PDA_KA, 9);
                     break;
                 case 0x02: // Keep Alive
-                    rsp_len = sizeof(pkt_rsp);
-                    rs485WriteRaw(pkt_rsp, rsp_len);
-                    rsp_ptr = pkt_rsp;
+                    rs485WriteRaw(pkt_rsp, 9);
                     break;
                 case 0x04: // Long Message
-                    rsp_len = sizeof(pkt_rsp);
-                    rs485WriteRaw(pkt_rsp, rsp_len);
-                    rsp_ptr = pkt_rsp;
+                    //if(cmd_seq == 1){
+                    //    pkt_rsp[4] = 0x36;
+                    //    pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4];
+                    //    cmd_seq=0;
+                    //}
+                    //else{
+                    //    pkt_rsp[4] = 0xD0; // Select Command
+                    //    pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4];
+                    //}
+                    rs485WriteRaw(pkt_rsp, 9);
+                    //cmd_seq++;
                     break;
                 case 0x08: // Highlight line
-                    rsp_len = sizeof(pkt_rsp);
-                    rs485WriteRaw(pkt_rsp, rsp_len);
-                    rsp_ptr = pkt_rsp;
+                    //pkt_rsp[4] = 0x36;
+                    //pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4];
+                    
+                    rs485WriteRaw(pkt_rsp, 9);
+                    Monitor.print("Line selected: ");
+                    Monitor.println(highlighted_line, HEX);
                     break;
                 case 0x09: //Clear Screen
-                    rsp_len = sizeof(pkt_rsp);
-                    rs485WriteRaw(pkt_rsp, rsp_len);
-                    rsp_ptr = pkt_rsp;
+                    rs485WriteRaw(pkt_rsp, 9);
                     break;
                 case 0x1B: // Screen UI Layer Sync / Menu Token
                 {
                     // 1. Grab whatever token the master threw at us (0x00, 0x04, 0x0B, etc.)
-                    uint8_t token = raw_bytes[2]; 
-                    uint8_t contextChecksum = 0x10 + 0x1C + token; // Checksum includes the command and token, plus the fixed 0x12
-                    uint8_t pkt_context_echo[] = { 
-                        0x10, 0x02,         // STX
-                        0x00,               // Destination (Master)
-                        0x1C,               // Command (Context ACK)
-                        token,              // The Echoed Token (Dynamically scales to 0x00 or any value)
-                        0x00,               // Padding
-                        contextChecksum,    // Calculated Checksum (Will be 0x2C when token is 0x00)
-                        0x10, 0x03          // ETX
-                    };
-                    rsp_len = sizeof(PKT_PDA_CS);
-                    rs485WriteRaw(PKT_PDA_CS, rsp_len);
-                    rsp_ptr = PKT_PDA_CS;
+                    pkt_rsp[4] = 0xC0; // Select Command
+                    pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4]; // Checksum includes the command and token, plus the fixed 0x12
+                    rs485WriteRaw(pkt_rsp, 9);
+                    pkt_rsp[4] = 0xD0; // Select Command
+                    pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4]; // Checksum includes the command and token, plus the fixed 0x12
+
                     break;
                 }
             }
 
-
             //Send packet to MPU
             bytesToHex(packetBuffer, pIdx, hexBuffer);
             Bridge.notify("pda_packet", hexBuffer);  
-            printPacketRsp(Monitor, rsp_ptr, rsp_len);
+            printPacketRsp(Monitor, pkt_rsp, 9);
 
         }
     #endif
