@@ -6,11 +6,9 @@ const socket = io(`http://${window.location.host}`);
 
 const els = {
     connectionText: document.getElementById('connection-text'),
+    mode: document.getElementById('mode'),
     airTemp: document.getElementById('air-temp'),
-    poolTemp: document.getElementById('pool-temp'),
-    spaTemp: document.getElementById('spa-temp'),
-    poolSet: document.getElementById('pool-set'),
-    spaSet: document.getElementById('spa-set'),
+    waterTemp: document.getElementById('water-temp'),
     filterPumpOn: document.getElementById('filter-pump-on'),
     auxState: document.getElementById('aux-state'),
     heaterState: document.getElementById('heater-state'),
@@ -24,13 +22,15 @@ const els = {
     poolTempInput: document.getElementById('pool-temp-input'),
     filterRpmInput: document.getElementById('filter-rpm-input'),
     spaOnBtn: document.getElementById('spa-on-btn'),
+    spaHeaterBtn: document.getElementById('spa-heater-btn'),
+    poolHeaterBtn: document.getElementById('pool-heater-btn'),
     filterOnBtn: document.getElementById('filter-on-btn'),
     spaLightsBtn: document.getElementById('spa-lights-btn'),
     poolLightsBtn: document.getElementById('pool-lights-btn'),
     allOffBtn: document.getElementById('all-off-btn'),
+    pdaBtn:  document.getElementById('pda-btn'),
     debugPanel: document.getElementById('debug-panel'),
     protocolOutput: document.getElementById('protocolOutput'),
-    sendTxButton: document.getElementById('send-tx-button'),
     errorContainer: document.getElementById('error-container'),
 };
 
@@ -43,25 +43,48 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindControls() {
-    els.spaOnBtn.addEventListener('click', () => {
-        const temp_f = parseInt(els.spaTempInput.value, 10) || 102;
-        socket.emit('set_spa', { temp_f });
+     
+    els.filterOnBtn.addEventListener('click', ()    => socket.emit('set_filter', {}));
+    els.spaOnBtn.addEventListener('click', ()       => socket.emit('set_spa', {}));
+    els.spaOnBtn.addEventListener('click', ()       => socket.emit('set_spa', {}));
+    els.spaHeaterBtn.addEventListener('click', ()   => socket.emit('set_spa_heater', {}));
+    els.poolHeaterBtn.addEventListener('click', () => socket.emit('set_pool_heater', {}));
+    els.poolLightsBtn.addEventListener('click', ()  => socket.emit('set_pool_lights', {}));
+    els.spaLightsBtn.addEventListener('click', ()   => socket.emit('set_spa_lights', {}));
+    els.allOffBtn.addEventListener('click', ()      => socket.emit('all_off', {})); 
+    els.pdaBtn.addEventListener('click', ()         => socket.emit('pda', {}));
+    
+    els.spaTempInput.addEventListener('change', (event) => {
+        const temp_f = parseInt(event.target.value, 10);
+        
+        // Safety constraint validation (standard spa max is typically 104°F)
+        if (!isNaN(temp_f) && temp_f >= 60 && temp_f <= 104) {
+            socket.emit('set_spa_temp', { temp_f });
+        } else {
+            console.error("Invalid spa temperature value.");
+        }
     });
-    els.filterOnBtn.addEventListener('click', () => {
-        const rpm = parseInt(els.filterRpmInput.value, 10);
-        socket.emit('set_filter', { rpm });
+
+    els.poolTempInput.addEventListener('change', (event) => {
+        const temp_f = parseInt(event.target.value, 10);
+        
+        // Safety constraint validation (standard pool max is typically 101°F)
+        if (!isNaN(temp_f) && temp_f >= 60 && temp_f <= 101) {
+            socket.emit('set_pool_temp', { temp_f });
+        } else {
+            console.error("Invalid pool temperature value.");
+        }
     });
-    els.poolLightsBtn.addEventListener('click', () => {
-        socket.emit('set_pool_lights', { on: true, target: 'pool' });
+
+    els.filterRpmInput.addEventListener('change', (event) => {
+        const rpm= parseInt(event.target.value, 10);
+        if (!isNaN(rpm) && rpm >= 0 && rpm <= 3600) {
+            socket.emit('set_filter_rpm', { rpm });
+        } else {
+            console.error("Invalid rpm.");
+        }
     });
-    els.spaLightsBtn.addEventListener('click', () => {
-        socket.emit('set_spa_lights', { on: true, target: 'spa' });
-    });
-    els.allOffBtn.addEventListener('click', () => socket.emit('all_off', {}));
-  
-    if (els.sendTxButton) {
-        els.sendTxButton.addEventListener('click', () => socket.emit('send_test_tx', {}));
-    }
+
 }
 
 function initSocketIO() {
@@ -94,11 +117,9 @@ function initSocketIO() {
 function applyState(s) {
     els.connectionText.textContent = s.connection_ok ? 'Connected' : 'No recent RS485 data';
 
+    els.mode.textContent = (s.mode);
     els.airTemp.textContent = fmtTemp(s.air_temp_f);
-    els.poolTemp.textContent = fmtTemp(s.pool_temp_f);
-    els.spaTemp.textContent = fmtTemp(s.spa_temp_f);
-    els.poolSet.textContent = fmtTemp(s.pool_setpoint_f);
-    els.spaSet.textContent = fmtTemp(s.spa_setpoint_f);
+    els.waterTemp.textContent = fmtTemp(s.water_temp_f);
     els.filterPumpOn.textContent = fmtBool(s.filter_pump_on);
     els.auxState.textContent = fmtBool(s.aux_pump_on);
     els.heaterState.textContent = fmtBool(s.heater_on);

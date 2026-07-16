@@ -9,12 +9,10 @@ import queue
 import threading
 import time
 from typing import Callable
+from bridge.client import BridgeClient, Command, CommandType
+from model.pool_state import PoolMode, PoolState
 
-from bridge.client import BridgeClient
-from model.commands import Command, CommandType
-from model.pool_state import PoolState
-
-FRAME_GAP_S = 0.35
+FRAME_GAP_S = 1
 
 class ControlPackets:
     """Steady-State Operational Ready Packets (Answering normal runtime loops)"""
@@ -60,21 +58,39 @@ class PoolController:
     def enqueue(self, cmd: Command) -> None:
         self._queue.put(cmd)
 
-    def spa_on(self, temp_f: int) -> None:
-        print("PoolController: spa_on called with temp_f:", temp_f)
-        self.enqueue(Command(CommandType.SPA_ON, temp_f))
+    def pool_filter(self) -> None:
+        print("PoolController: pool_filter called")
+        self.enqueue(Command(command_type=CommandType.POOL_FILTER))
 
-    def pool_filter(self, rpm: int | None = None, preset: str | None = None) -> None:
-        print("PoolController: pool_filter called with rpm:", rpm, "preset:", preset)
-        self.enqueue(Command(CommandType.POOL_FILTER, rpm, 101, ControlPackets.PDA_SELECT))
+    def pool_filter_rpm(self, rpm: int | None = None) -> None:
+        print("PoolController: pool_filter called")
+        self.enqueue(Command(command_type=CommandType.POOL_FILTER_RPM, rpm=rpm))
+    
+    def pool_temp(self, temp_f: int) -> None:
+        self.enqueue(Command(command_type=CommandType.POOL_TEMP, temp_f=temp_f))
+
+    def spa_on(self) -> None:
+        print("PoolController: spa_on called")
+        self.enqueue(Command(command_type=CommandType.SPA_ON))
+
+    def spa_temp(self, temp_f: int) -> None:
+        self.enqueue(Command(command_type=CommandType.SPA_TEMP, temp_f=temp_f))
 
     def all_off(self) -> None:
         print("PoolController: all_off called")
-        #self.enqueue(Command(type=CommandType.ALL_OFF))
+        self.enqueue(Command(command_type=CommandType.ALL_OFF))
+    
+    def pda(self) -> None:
+        print("PoolController: PDA called")
+        self.enqueue(Command(command_type=CommandType.PDA))
 
-    def set_lights(self, on: bool, target: str = "pool") -> None:
-        print("PoolController: set_lights called with on:", on, "target:", target)
-        #self.enqueue( Command(type=CommandType.LIGHTS,lights_on=on,  light_target=target,)        )
+    def set_pool_lights(self) -> None:
+        print("PoolController: set_pool_lights called")
+        self.enqueue( Command(command_type=CommandType.POOL_LIGHTS))
+
+    def set_spa_lights(self) -> None:
+        print("PoolController: set_spa_lights called")
+        self.enqueue( Command(command_type=CommandType.SPA_LIGHTS))
 
     def reset(self) -> None:
         print("PoolController: reset called")
@@ -86,6 +102,8 @@ class PoolController:
                 cmd = self._queue.get(timeout=0.5)
             except queue.Empty:
                 continue
+            
+            time.sleep(FRAME_GAP_S)
             if cmd is None:
                 break
             self._execute(cmd)
@@ -94,8 +112,7 @@ class PoolController:
 
     def _execute(self, cmd: Command) -> None:
         print("controller: _execute (command type:)", cmd.type)
-        self.bridge.control_command(cmd.type)
-        time.sleep(FRAME_GAP_S)
+        self.bridge.control_command(cmd)
 
 
 

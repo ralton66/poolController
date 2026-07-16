@@ -5,25 +5,38 @@
 
 #define TEST_LED
 #define TEST_CLOUD 
-//#define PKT_LOG_ONLY 
+#define PKT_LOG_ONLY 
 
 // MAX485 driver enable / receive enable
 #define DE 3
 #define RE 2
 #define MAX_PKT 256
 
+enum Command {
+    CMD_UNKNOWN,
+    CMD_POOL,
+    CMD_POOL_HEAT,
+    CMD_POOL_LIGHTS,
+    CMD_SPA,
+    CMD_SPA_HEAT,
+    CMD_SPA_LIGHT,
+    CMD_ALL_OFF,
+    CMD_PDA,
+    CMD_INSEQ
+};
+
 
 // Keep Alive Packet 
 const uint8_t PKT_PDA_KA[] = {0x10, 0x02, 0x00, 0x01, 0x00, 0x00, 0x13, 0x10, 0x03};
 
-// ACK Packet 
+// ACK Packet with keypressed - no key 
 const uint8_t PKT_PDA_ACK[] = {0x10, 0x02, 0x00, 0x01, 0x50, 0x00, 0x63, 0x10, 0x03};
 
 // ACK Short Packet 
 const uint8_t PKT_PDA_ACK_SHORT[] = {0x10, 0x02, 0x00, 0x01, 0xD0, 0x00, 0xE3, 0x10, 0x03};
 
-// CS????
-const uint8_t PKT_PDA_CS[] = {0x10, 0x02, 0x00, 0x01, 0xC0, 0x00, 0xD3, 0x10, 0x03};
+// ACK Packet with no keypressed
+const uint8_t PKT_PDA_ACKNK[] = {0x10, 0x02, 0x00, 0x01, 0xC0, 0x00, 0xD3, 0x10, 0x03};
 
 // HS????
 const uint8_t PKT_PDA_HS[] = {0x10, 0x02, 0x00, 0x20, 0x46, 0x00, 0x00, 0x03, 0x30, 0x32, 0x30, 0x00, 0x00, 0x3D, 0x10, 0x03};
@@ -62,6 +75,8 @@ const uint8_t MAX_PACKET_LEN   = 24;
 static int hexNibble(char c);
 void bytesToHex(uint8_t* in, int len, char* out);
 bool validateChecksum(const uint8_t* buf, size_t len);
+void rs485SetTransmit(bool tx);
+void rs485WriteRaw(Stream& serial1, const uint8_t* data, int len);
 
 /**
  * Prints a raw byte buffer as formatted hex values to a specified serial interface.

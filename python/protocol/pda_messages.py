@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-
 from .jandy_frame import JandyFrame
 
 # PDA display commands (Jandy protocol)

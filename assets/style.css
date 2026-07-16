@@ -84,6 +84,20 @@ body {
     letter-spacing: 0.05em;
 }
 
+.equip-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* Creates 2 equal-width columns */
+    gap: 10px 20px;                                  /* 10px vertical spacing, 20px horizontal spacing */
+    list-style-type: none;                           /* Removes default bullet points if desired */
+    padding: 0;
+    margin: 0;
+}
+.equip-list li {
+    display: flex;
+    justify-content: space-between; /* Pushes text to the left, <strong> state to the right */
+    border-bottom: 1px dashed #eee; /* Optional: adds a subtle separator line */
+    padding-bottom: 4px;
+}
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -175,6 +189,63 @@ button.danger:hover {
     color: #721c24;
     border: 1px solid #f5c6cb;
     font-size: 14px;
+}
+/* Container that holds the 3 items side-by-side */
+.parameters-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+/* The fancy "pod" style wrapper around each input/label pair */
+.param-pod {
+    flex: 1; /* Makes them take up equal widths */
+    display: flex;
+    flex-direction: column-reverse; /* Stacked: Input on top, Label on bottom */
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 12px 6px;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Subtle accent focus highlight when a user clicks into a box */
+.param-pod:focus-within {
+    border-color: #4a90e2;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.1);
+}
+
+/* Styles the numerical inputs like a bold readout display */
+.param-pod input[type="number"] {
+    width: 85%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #212529;
+    padding: 4px 0;
+    outline: none; /* Removes the ugly default focus ring */
+}
+
+/* Clean, uppercase label formatting tucked underneath */
+.param-pod label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+/* Optional helper to hide standard browser numerical scroll arrows for a cleaner app aesthetic */
+.param-pod input[type="number"]::-webkit-inner-spin-button,
+.param-pod input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 @media (max-width: 768px) {

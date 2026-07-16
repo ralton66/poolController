@@ -4,7 +4,6 @@
 """Jandy RS485 DLE/STX/ETX framing (AqualinkD-compatible)."""
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 
 DLE = 0x10

@@ -9,6 +9,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dataclasses import dataclass
+from enum import Enum
+
 try:
     from arduino.app_utils import Bridge
 except ImportError:
@@ -19,13 +22,36 @@ from protocol.jandy_frame import bytes_to_hex, decode_payload, encode_wire, hex_
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_LOG = _REPO_ROOT / "protocol.log"
 
-#Control Commands
-COMMAND_MAP = {
-    "spa_on": 0x01,       
-    "pool_filter": 0x02,
-    "all_off": 0x00,
-    "lights": 0x04,
-}
+
+
+# Panel / AllButton destination used in bench fixtures
+DEST_PANEL = 0x00
+CMD_STATUS = 0x04
+
+
+class CommandType(str, Enum):
+    SPA_ON = "spa_on"
+    POOL_FILTER = "pool_filter"
+    ALL_OFF = "all_off"
+    PDA = "pda"
+    POOL_LIGHTS = "pool_lights"
+    SPA_LIGHTS = "spa_lights"
+    SPA_TEMP = "spa_temp"
+    POOL_TEMP = "pool_temp"
+    POOL_FILTER_RPM = "filter_rpm"
+    RESET = "reset"
+    STATUS_POLL = "status_poll"
+
+
+class Command:
+    def __init__(self, command_type, rpm: int = None, temp_f: int = None):
+        self.type = command_type
+        self.rpm = rpm
+        self.temp_f = temp_f
+        
+
+    def __repr__(self):
+        return f"Command(type={self.type}, rpm={self.rpm}, temp_f={self.temp_f})"
 
 
 class BridgeClient:
@@ -46,13 +72,32 @@ class BridgeClient:
         Bridge.notify("RS485_send", hex_wire)
         return hex_wire
 
-    def control_command(self, cmd: str) -> None:
-        print(f"client->control_command: {cmd}")
-        Bridge.notify("control_cmd", cmd)
+    def control_command(self, cmd: Command) -> None:
+        print(f"client->control_command: {cmd.type}")
+        if(cmd.type == CommandType.SPA_TEMP ):
+            temp = cmd.temp_f
+            Bridge.notify("set_spa_temp", temp)
+        elif(cmd.type  == CommandType.POOL_TEMP):
+            temp = cmd.temp_f
+            Bridge.notify("set_pool_temp", temp)
+        elif(cmd.type  == CommandType.POOL_FILTER_RPM):
+            rpm = cmd.rpm
+            Bridge.notify("set_filter_rpm", rpm)
+        else:
+            Bridge.notify("control_cmd", cmd.type)
         
-
     def toggle_led(self, value: bool) -> None:
         Bridge.notify("set_led_state", value)
+
+    def got_main(self, value: bool) -> None:
+        print(f"client->set main: {value}")
+        Bridge.notify("set_main_menu", value)
+
+    def toggle_spa(self, value: bool) -> None:
+        Bridge.notify("set_spa_state", value)
+
+    def toggle_pool(self, value: bool) -> None:
+        Bridge.notify("set_pool_state", value)
 
     def log_rx_payload(self, hex_payload: str) -> None:
         csv_line = pda_parse(hex_payload)

@@ -27,34 +27,23 @@ SPDX-License-Identifier: MPL-2.0
 
         <main class="dashboard">
              <section class="card readings">
-                <h2>Temperatures</h2>
                 <div class="grid">
                     <div class="metric">
                         <span class="label">Air</span>
                         <span class="value" id="air-temp">—</span>
                     </div>
                     <div class="metric">
-                        <span class="label">Pool</span>
-                        <span class="value" id="pool-temp">—</span>
+                        <span class="label">Water</span>
+                        <span class="value" id="water-temp">—</span>
                     </div>
-                    <div class="metric">
-                        <span class="label">Spa</span>
-                        <span class="value" id="spa-temp">—</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Pool set</span>
-                        <span class="value" id="pool-set">—</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Spa set</span>
-                        <span class="value" id="spa-set">—</span>
-                    </div>
+
                 </div>
             </section>
            
             <section class="card equipment">
                 <h2>Equipment</h2>
                 <ul class="equip-list">
+                    <li>Mode: <strong id="mode">—</strong></li>
                     <li>Filter pump: <strong id="filter-pump-on">—</strong></li>
                     <li>Aux / jets: <strong id="aux-state">—</strong></li>
                     <li>Heater: <strong id="heater-state">—</strong></li>
@@ -70,25 +59,36 @@ SPDX-License-Identifier: MPL-2.0
             <section class="card controls">
                 <h2>Controls</h2>
                 
+                <!-- Your existing button row remains exactly the same -->
                 <div class="control-row buttons">
                     <button type="button" id="filter-on-btn">Pool</button>
                     <button type="button" id="spa-on-btn">Spa</button>
                     <button type="button" id="pool-lights-btn">Pool Lights</button>
                     <button type="button" id="spa-lights-btn">Spa Lights</button>
+                    <button type="button" id="pool-heater-btn">Pool Heater</button>
+                    <button type="button" id="spa-heater-btn">Spa Heater</button>
                     <button type="button" id="all-off-btn" class="danger">All off</button>
+                    <button type="button" id="pda-btn" class="danger">PDA</button>
                 </div>
-                <div class="control-row">
-                    <label for="spa-temp-input">Spa temp (°F)</label>
-                    <input type="number" id="spa-temp-input" min="80" max="104" value="102">
+
+                <!-- The Fancy Side-by-Side Param Row -->
+                <div class="parameters-grid">
                     
-                </div>
-                <div class="control-row">
-                    <label for="pool-temp-input">Pool temp (°F)</label>
-                    <input type="number" id="pool-temp-input" min="60" max="101" value="91">
-                </div>
-                 <div class="control-row">
-                    <label for="filter-rpm-input">Filter RPM</label>
-                    <input type="number" id="filter-rpm-input" min="0" max="3450" value="1200" step="50">
+                    <div class="param-pod">
+                        <input type="number" id="spa-temp-input" min="80" max="104" value="102">
+                        <label for="spa-temp-input">Spa Temp (°F)</label>
+                    </div>
+                    
+                    <div class="param-pod">
+                        <input type="number" id="pool-temp-input" min="60" max="101" value="91">
+                        <label for="pool-temp-input">Pool Temp (°F)</label>
+                    </div>
+                    
+                    <div class="param-pod long">
+                        <input type="number" id="filter-rpm-input" min="0" max="3450" value="1200" step="50">
+                        <label for="filter-rpm-input">Filter RPM</label>
+                    </div>
+                    
                 </div>
             </section>
 

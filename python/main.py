@@ -17,25 +17,26 @@ from bridge.client import get_client
 from cloud.arduino_sync import CloudSync
 from model.pool_state import PoolState
 from services.controller import PoolController
-from services.monitor import PoolMonitor, StateMachine, ControlState
-from services.test_mode import TestModeService, is_test_mode
+from services.monitor import PoolMonitor
 
 TEST_LED = True
 TEST_CLOUD = True
 DEBUG_PROTOCOL = False
+led_is_on = False
+pool_is_on = False
+spa_is_on = False
 
 PKT_PDA_SELECT = bytes([
     0x10, 0x02, 0x00, 0x01, 0x50, 0x04, 0x67, 0x10, 0x03
 ])
 
 bridge = get_client()
-pool_state = PoolState()
-sm = StateMachine(state=ControlState.IDLE)
+pool_state = PoolState(bridge)
 ui = WebUI()
-
 
 def broadcast_state():
     snap = monitor.get_snapshot()
+    print("broadcast_state: ", snap)
     ui.send_message("state_update", snap)
     if DEBUG_PROTOCOL:
         ui.send_message("protocol_update", snap.get("last_packet", snap))
@@ -47,14 +48,10 @@ def on_state_updated(_state: PoolState):
 
 
 controller = PoolController(bridge, pool_state, on_tx=lambda h: ui.send_message("protocol_tx", {"hex": h}))
-
-monitor = PoolMonitor(pool_state, bridge, controller, sm, on_update=on_state_updated)
+monitor = PoolMonitor(pool_state, bridge, controller, on_update=on_state_updated)
 cloud_sync = CloudSync(pool_state, bridge, controller, on_state_push=lambda _: broadcast_state())
 
-
 def on_pda_packet(hex_payload: str):
-    if is_test_mode():
-        return
     monitor.handle_hex_payload(hex_payload)
 
 
@@ -70,61 +67,58 @@ def on_get_initial_state(client, data):
 
 
 def on_set_spa(client, data):
+    controller.spa_on()
+
+def on_set_filter(client, data): 
+    print("main: on_set_filter")
+    controller.pool_filter()
+
+def on_set_spa_temp(client, data):
+    print("main: on_set_spa_temp ")
     try:
         temp_f = int(data.get("temp_f", 102)) if isinstance(data, dict) else 102
     except (TypeError, ValueError):
         temp_f = 102
-    controller.spa_on(temp_f)
+    controller.spa_temp(temp_f)
+
+def on_set_pool_temp(client, data): 
+    print("main: on_set_pool_temp ")
+    try:
+        temp_f = int(data.get("temp_f", 89)) if isinstance(data, dict) else 89
+    except (TypeError, ValueError):
+        temp_f = 89
+    controller.pool_temp(temp_f)
 
 
-def on_set_filter(client, data):
+def on_set_filter_rpm(client, data): 
     rpm = None
-    preset = None
-    print("main: on_set_filter")
     if isinstance(data, dict):
         if "rpm" in data:
             try:
                 rpm = int(data["rpm"])
             except (TypeError, ValueError):
                 pass
-        preset = data.get("preset")
-    controller.pool_filter(rpm=rpm, preset=preset)
+    controller.pool_filter_rpm(rpm=rpm)
 
 
-def on_set_lights(client, data):
-    on = True
-    target = "pool"
-    if isinstance(data, dict):
-        on = data.get("on", True)
-        if isinstance(on, str):
-            on = on.lower() in ("1", "true", "on")
-        target = data.get("target", "pool")
-    controller.set_lights(bool(on), target)
+def on_set_pool_lights(client, data):
+    controller.set_pool_lights()
 
+def on_set_spa_lights(client, data):
+    controller.set_spa_lights()
 
 def on_all_off(client, data):
     controller.all_off()
 
-
 def on_reset(client, data):
     controller.reset()
 
-
-def on_send_test_tx(client, data):
-    print("")
-
-def on_inject_test_rx(client, data):
-    if is_test_mode():
-        print("")
-    else:
-        bridge.inject_test_packet()
-
+def on_pda(client, data):
+    controller.pda()
 
 def on_get_protocol_state(client, data):
     ui.send_message("protocol_update", pool_state.last_packet, client)
 
-
-led_is_on = False
 
 def get_led_status():
     return {
@@ -132,6 +126,17 @@ def get_led_status():
         "status_text": "LED IS ON" if led_is_on else "LED IS OFF",
     }
 
+def get_spa_status():
+    return {
+        "spa_is_on": spa_is_on,
+        "status_text": "SPA IS ON" if spa_is_on else "SPA IS OFF",
+    }
+
+def get_pool_status():
+    return {
+        "pool_is_on": pool_is_on,
+        "status_text": "POOL IS ON" if pool_is_on else "POOL IS OFF",
+    }
 
 def toggle_led_state(client, data):
     global led_is_on
@@ -139,15 +144,32 @@ def toggle_led_state(client, data):
     Bridge.call("set_led_state", led_is_on)
     ui.send_message("led_status_update", get_led_status())
 
+def toggle_spa_state(client, data):
+    global spa_is_on
+    spa_is_on = not spa_is_on
+    Bridge.call("set_spa_state", spa_is_on)
+    ui.send_message("spa_status_update", get_spa_status())
 
+def toggle_pool_state(client, data):
+    global pool_is_on
+    pool_is_on = not pool_is_on
+    Bridge.call("set_pool_state", pool_is_on)
+    ui.send_message("pool_status_update", get_pool_status())
+
+# Callback to get pda packet info coming from panel
 Bridge.provide("pda_packet", on_pda_packet)
 
 ui.on_message("get_state", on_get_state)
 ui.on_message("get_initial_state", on_get_initial_state)
 ui.on_message("set_spa", on_set_spa)
 ui.on_message("set_filter", on_set_filter)
-ui.on_message("set_lights", on_set_lights)
+ui.on_message("set_filter_rpm", on_set_filter_rpm)
+ui.on_message("set_pool_lights", on_set_pool_lights)
+ui.on_message("set_spa_lights", on_set_spa_lights)
+ui.on_message("set_pool_temp", on_set_pool_temp)
+ui.on_message("set_spa_temp", on_set_spa_temp)
 ui.on_message("all_off", on_all_off)
+ui.on_message("pda", on_pda)
 ui.on_message("reset", on_reset)
 
 if TEST_LED:

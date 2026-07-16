@@ -7,11 +7,9 @@ from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Callable
-
+from bridge.client import BridgeClient, Command, CommandType
 from model.pool_state import PoolMode, PoolState
-from model.commands import CommandType
-from model.commands import Command
-from bridge.client import BridgeClient
+
 
 if TYPE_CHECKING:
     from services.controller import PoolController
@@ -46,12 +44,28 @@ class CloudSync:
         self._register_properties()
         #self.push_state()
 
+    # Registered callback with the cloud
+    # Bridge class has callback to the sketch
     def led_callback(self, client: object, value: bool):
         """Callback function to handle LED blink updates from cloud."""
         print(f"LED blink value updated from cloud: {value}")
         # Call a function in the sketch, using the Bridge helper library, to control the state of the LED connected to the microcontroller.
         # This performs a RPC call and allows the Python code and the Sketch code to communicate.
         self.bridge.toggle_led(value)
+
+    def pool_callback(self, client: object, value: bool):
+        """Callback function to set pool mode from cloud."""
+        print(f"Pool updated from cloud: {value}")
+        # Call a function in the sketch, using the Bridge helper library, to control the state of the LED connected to the microcontroller.
+        # This performs a RPC call and allows the Python code and the Sketch code to communicate.
+        self.bridge.toggle_pool(value)
+
+    def spa_callback(self, client: object, value: bool):
+        """Callback function to set spa mode from cloud."""
+        print(f"Spa updated from cloud: {value}")
+        # Call a function in the sketch, using the Bridge helper library, to control the state of the LED connected to the microcontroller.
+        # This performs a RPC call and allows the Python code and the Sketch code to communicate.
+        self.bridge.toggle_spa(value)
 
     def _register_properties(self) -> None:
         c = self._cloud
@@ -68,14 +82,16 @@ class CloudSync:
             else:
                 self.controller.all_off()
 
-        def spa_target_write(_client, value):
-            try:
-                temp_f = int(value)
-            except (TypeError, ValueError):
-                return
-            self.controller.enqueue(
-                Command(type=CommandType.SPA_ON, temp_f=temp_f)
-            )
+        def temp_setpoint_write(_client, value):
+            """Callback function to set spa mode from cloud."""
+            print(f"temp set from cloud: {value}")
+            #try:
+            #    temp_setpoint_f = int(value)
+            #except (TypeError, ValueError):
+            #    return
+            #self.controller.enqueue(
+            #    Command(type=CommandType.SPA_ON, temp_f=temp_f)
+            #)
 
         def lights_write(_client, value):
             on = value in (True, 1, "1", "true", "on")
@@ -84,6 +100,9 @@ class CloudSync:
         c.register("led", value=False, on_write=self.led_callback)
         c.register("air_temp_f", value=0)
         c.register("water_temp_f", value=0)
+        c.register("temp_setpoint_f", value=90, on_write=temp_setpoint_write)
+        c.register("pool", value=False, on_write=self.pool_callback)
+        c.register("spa", value=False, on_write=self.spa_callback)
         #c.register("mode", value="off", on_write=mode_write)
         #c.register("filter_pump_on", value=False)
         #c.register("filter_rpm", value=0)
@@ -92,16 +111,16 @@ class CloudSync:
         self._read_keys = (
             "water_temp_f",
             "air_temp_f",
+            "temp_setpoint_f",
+            "pool",
+            "spa"
         )
-        
-        c.air_temp_f = 25
-        #c.water_temp_f = 85
 
     def _push_read(self, name: str, value) -> None:
         if value is None or not self._cloud:
             return
         c = self._cloud
-        print(f"Cloud sync: {name} -> {value}")
+        #print(f"Cloud sync: {name} -> {value}")
 
         try:
             setattr(c, name, value)

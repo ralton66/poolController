@@ -10,14 +10,14 @@ import cmd
 import threading
 from typing import Callable
 from enum import Enum
-from bridge.client import BridgeClient
+from bridge.client import BridgeClient, Command, CommandType
 from model.pool_state import PoolState
 from protocol.jandy_frame import decode_payload, encode_wire, hex_to_bytes
 from protocol.pda_messages import parse_packet
 from services.controller import PoolController
-from model.commands import Command, CommandType, ControlState, StateMachine
+from model.commands import ControlState, StateMachine
 
-UPDATE_SECONDS = 30
+UPDATE_SECONDS = 10
 
 class PoolMonitor:
     def __init__(
@@ -25,14 +25,12 @@ class PoolMonitor:
         state: PoolState,
         bridge: BridgeClient,
         pc: PoolController,
-        sm: StateMachine,
         on_update: Callable[[PoolState], None] | None = None,
          
     ):
         self.state = state
         self.bridge = bridge
         self.pc = pc
-        self.sm = sm
         self.last_update: float = 0.0
         self._on_update = on_update
         self._lock = threading.Lock()
@@ -63,7 +61,7 @@ class PoolMonitor:
         update_threshold = UPDATE_SECONDS if 'UPDATE_SECONDS' in globals() else 10
         if time.time() - self.last_update > update_threshold:
             self.last_update = time.time()
-            print(f"Update time: {self.last_update}")
+            #print(f"Update time: {self.last_update}")
             if self._on_update:
                 self._on_update(self.state)
 

@@ -16,8 +16,7 @@ bool validateChecksum(const uint8_t* buf, size_t len) {
     
     for (int i = 0; i < len - 1; i++)
        calculatedSum += buf[i];
-
-    return ((calculatedSum + 0x12) == buf[len - 1]);
+    return (((calculatedSum + 0x12) & 0xFF) == buf[len - 1]);
 }
 
 void bytesToHex(uint8_t* in, int len, char* out) {
@@ -27,6 +26,23 @@ void bytesToHex(uint8_t* in, int len, char* out) {
         out[i * 2 + 1] = hexChars[in[i] & 0x0F];
     }
     out[len * 2] = '\0';
+}
+
+void rs485SetTransmit(bool tx) {
+    digitalWrite(DE, tx ? HIGH : LOW);
+    digitalWrite(RE, tx ? HIGH : LOW);
+}
+
+void rs485WriteRaw(Stream& serial1, const uint8_t* data, int len) {
+    if (len <= 0) return;
+    rs485SetTransmit(true);
+    delay(1);
+    serial1.write(data, len);
+    serial1.flush();
+    delay(1);
+    rs485SetTransmit(false);
+    //Monitor.print("T: ");
+    //Monitor.println(millis());
 }
 
 void printPacketBuffer(Stream& monitor, const uint8_t* buf, size_t len) {

@@ -3,4 +3,10 @@
 
 from .client import BridgeClient, get_client
 
-__all__ = ["BridgeClient", "get_client"]
+__all__ = [
+    "BridgeClient", 
+    "get_client",
+    "Command",
+    "CommandType"
+    
+    ]

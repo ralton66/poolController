@@ -10,32 +10,6 @@ from enum import Enum
 
 from protocol.jandy_frame import encode_wire
 
-# Panel / AllButton destination used in bench fixtures
-DEST_PANEL = 0x00
-CMD_STATUS = 0x04
-
-
-class CommandType(str, Enum):
-    SPA_ON = "spa_on"
-    POOL_FILTER = "pool_filter"
-    ALL_OFF = "all_off"
-    LIGHTS = "lights"
-    RESET = "reset"
-    STATUS_POLL = "status_poll"
-
-
-class Command:
-    def __init__(self, command_type, rpm: int = None, temp_f: int = None, *control_packets: bytes):
-        self.type = command_type
-        self.rpm = rpm
-        self.temp_f = temp_f
-        # control_packets automatically captures any remaining arguments as a tuple
-        self.control_packets = control_packets 
-
-    def __repr__(self):
-        return f"Command(type={self.type}, rpm={self.rpm}, packets_count={len(self.control_packets)})"
-
-
 class ControlState(Enum):
     SEND_PKTS = 1
     STATE_RESET = 2

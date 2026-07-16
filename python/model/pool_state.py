@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 from protocol.pda_messages import ParsedPacket
+from bridge.client import BridgeClient, Command, CommandType
 
 STALE_SECONDS = 30
 
@@ -17,23 +18,28 @@ class PoolMode(str, Enum):
     SPA = "spa"
 
 class PoolState:
-    def __init__(self):
+    
+
+    def __init__(self, bridge: BridgeClient):
+
+
+        self.bridge = bridge
         # Master hardware display memory tracking. Keys are raw Jandy lead bytes.
         self.virtual_screen: dict[int, str] = {}
+        self.off_ctr: int = 0
         
         # Observable parsed properties
         self.mode = PoolMode.OFF
         self.air_temp_f: int | None = None
-        self.pool_temp_f: int | None = None
-        self.spa_temp_f: int | None = None
+        self.water_temp_f: int | None = None
         self.pool_setpoint_f: int | None = None
         self.spa_setpoint_f: int | None = None
-        
         self.salt_ppm: int | None = None
         self.swg_percent: int | None = None
         self.filter_rpm: int | None = None
         self.filter_watts: int | None = None
-        
+        self.spa: bool = False
+        self.pool: bool = False
         self.filter_pump_on: bool = False
         self.aux_pump_on: bool = False
         self.heater_on: bool = False
@@ -62,7 +68,6 @@ class PoolState:
         if time.time() - self.last_update > stale_threshold:
             self.connection_ok = False
 
-
     def apply_parsed(self, parsed: ParsedPacket, hex_payload: str = "") -> None:
         dest = parsed.frame.dest
         cmd = parsed.frame.cmd
@@ -81,6 +86,7 @@ class PoolState:
                 return
             
             self.touch()
+
             pkt = parsed.to_dict()
             pkt["hex"] = hex_payload
             self.last_packet = pkt  
@@ -105,10 +111,30 @@ class PoolState:
                 for addr in sorted(self.virtual_screen.keys()):
                     print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
                 print("-----------------------------------------------\n")
+                
+                #reset counter because we recieved at least a temp update
+                self.off_ctr = 0
 
                 self._parse_screen_matrix()
                 self.screen_clr = False
+                self.bridge.got_main(True)
+            
+            if lead_byte == 64:
+                self.off_ctr += 1
+                print(f"  Time line counter: {self.off_ctr} ")
+                if( self.off_ctr > 2):
+                    self.bridge.got_main(True)
+                    self.virtual_screen.clear()
+                    self.mode = PoolMode.OFF
+                    self.spa = False
+                    self.pool = False
+                    self.filter_pump_on = False
+            
+            
+            
             return
+
+            
 
         # --- ACTION 3: PROTOCOL END-OF-SEQUENCE TERMINATOR (0x02) ---
         # The master sends cmd 0x02 right after the last EQUIPMENT STATUS msg_long finishes
@@ -127,7 +153,7 @@ class PoolState:
                 print("\n Protocol 0x02 Terminator Frame Received! Processing equipment stats...")
                 
                 # Visual verification printout of exactly what we're handing off
-                print("--- Current Staged Equipment Matrix Layout ---")
+                #print("--- Current Staged Equipment Matrix Layout ---")
                 for addr in sorted(self.virtual_screen.keys()):
                     print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
                 print("-----------------------------------------------\n")
@@ -176,6 +202,8 @@ class PoolState:
             # 5. Global Aux Toggle Monitors
             if "POOL LIGHT" in status_block:
                 self.pool_light_on = "POOL LIGHT ON" in status_block
+                print("PoolState: Pool Light is on.")
+
             if "SPA LIGHT" in status_block:
                 self.spa_light_on = "SPA LIGHT ON" in status_block
 
@@ -198,31 +226,32 @@ class PoolState:
                 water_match = re.search(r"(\d+)\s*F", right_half)
                 
                 if water_match:
-                    water_temp = int(water_match.group(1))
+                    self.water_temp_f = int(water_match.group(1))
                     
-                    # Check labels context to see if this number belongs to POOL or SPA
-                    if "SPA" in l2_labels:
-                        self.spa_temp_f = water_temp
-                    else:
-                        # Default to pool temp if spa mode isn't explicitly on screen
-                        self.pool_temp_f = water_temp
-
             # Home-screen operational mode decoders
             if "POOL MODE" in status_block:
 
                 self.mode = PoolMode.POOL if "POOL MODE     ON" in status_block else self.mode
-                if "POOL MODE     ON" in status_block in status_block:
+                if "POOL MODE     ON" in status_block:
                     self.filter_pump_on = True
+                    self.mode = PoolMode.POOL
+                    self.pool = True
+                    self.spa = False
                     print("PoolMonitor: Pool mode is on, filter pump enabled.")
 
             if "SPA MODE" in status_block:
                 self.mode = PoolMode.SPA if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block else self.mode
                 if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block:
                     self.filter_pump_on = True
+                    self.mode = PoolMode.SPA
+                    self.spa = True
+                    self.pool = False
                     print("PoolMonitor: Spa mode is on, filter pump enabled.")
                     
             if "ALL OFF" in status_block:
                 self.mode = PoolMode.OFF
+                self.spa = False
+                self.pool = False
                 self.filter_pump_on = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -234,8 +263,7 @@ class PoolState:
         return {
             "mode": self.mode.value if hasattr(self.mode, 'value') else self.mode,
             "air_temp_f": self.air_temp_f,
-            "pool_temp_f": self.pool_temp_f,
-            "spa_temp_f": self.spa_temp_f,
+            "water_temp_f": self.water_temp_f,
             "pool_setpoint_f": self.pool_setpoint_f,
             "spa_setpoint_f": self.spa_setpoint_f,
             "salt_ppm": self.salt_ppm,
@@ -247,6 +275,8 @@ class PoolState:
             "heater_on": self.heater_on,
             "pool_light_on": self.pool_light_on,
             "spa_light_on": self.spa_light_on,
+            "spa": self.spa,
+            "pool": self.pool,
             "valve": self.valve,
             "swg_status": self.swg_status,
             "undefined_state": self.undefined_state,
@@ -262,9 +292,9 @@ class PoolState:
         """Subset exposed as Cloud read properties (AC-12)."""
         d = self.to_dict()
         return {
-            "water_temp_f": d.get("pool_temp_f"),
+            "water_temp_f": d.get("water_temp_f"),
             "air_temp_f": d.get("air_temp_f"),
-            "mode": d.get("mode", "off"),
-            "filter_pump_on": d.get("filter_pump_on", False),
-            "filter_rpm": d.get("filter_rpm"),
+            "spa": d.get("spa", False),
+            "pool": d.get("pool", False),
+            "temp_setpoint_f": d.get("pool_setpoint_f"),
         }

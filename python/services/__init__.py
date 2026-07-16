@@ -3,6 +3,5 @@
 
 from .monitor import PoolMonitor
 from .controller import PoolController
-from .test_mode import TestModeService, is_test_mode
 
-__all__ = ["PoolMonitor", "PoolController", "TestModeService", "is_test_mode"]
+__all__ = ["PoolMonitor", "PoolController"]
