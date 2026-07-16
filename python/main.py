@@ -42,10 +42,8 @@ def broadcast_state():
         ui.send_message("protocol_update", snap.get("last_packet", snap))
     cloud_sync.on_state_changed(pool_state)
 
-
 def on_state_updated(_state: PoolState):
     broadcast_state()
-
 
 controller = PoolController(bridge, pool_state, on_tx=lambda h: ui.send_message("protocol_tx", {"hex": h}))
 monitor = PoolMonitor(pool_state, bridge, controller, on_update=on_state_updated)
@@ -54,32 +52,21 @@ cloud_sync = CloudSync(pool_state, bridge, controller, on_state_push=lambda _: b
 def on_pda_packet(hex_payload: str):
     monitor.handle_hex_payload(hex_payload)
 
-
 def on_get_state(client, data):
     print("State Update")
     ui.send_message("state_update", monitor.get_snapshot(), client)
-   
 
 def on_get_initial_state(client, data):
     on_get_state(client, data)
     if TEST_LED:
         print("led_status_update")
 
-
-def on_set_spa(client, data):
-    controller.spa_on()
-
 def on_set_filter(client, data): 
     print("main: on_set_filter")
     controller.pool_filter()
 
-def on_set_spa_temp(client, data):
-    print("main: on_set_spa_temp ")
-    try:
-        temp_f = int(data.get("temp_f", 102)) if isinstance(data, dict) else 102
-    except (TypeError, ValueError):
-        temp_f = 102
-    controller.spa_temp(temp_f)
+def on_set_pool_heater(client, data):
+    controller.pool_heater()
 
 def on_set_pool_temp(client, data): 
     print("main: on_set_pool_temp ")
@@ -89,6 +76,8 @@ def on_set_pool_temp(client, data):
         temp_f = 89
     controller.pool_temp(temp_f)
 
+def on_set_pool_lights(client, data):
+    controller.set_pool_lights()
 
 def on_set_filter_rpm(client, data): 
     rpm = None
@@ -100,12 +89,25 @@ def on_set_filter_rpm(client, data):
                 pass
     controller.pool_filter_rpm(rpm=rpm)
 
+def on_set_spa(client, data):
+    controller.spa_on()
 
-def on_set_pool_lights(client, data):
-    controller.set_pool_lights()
+def on_set_spa_heater(client, data):
+    controller.spa_heater()
+
+def on_set_spa_temp(client, data):
+    print("main: on_set_spa_temp ")
+    try:
+        temp_f = int(data.get("temp_f", 102)) if isinstance(data, dict) else 102
+    except (TypeError, ValueError):
+        temp_f = 102
+    controller.spa_temp(temp_f)
 
 def on_set_spa_lights(client, data):
     controller.set_spa_lights()
+
+def on_set_jets(client, data):
+    controller.jets()
 
 def on_all_off(client, data):
     controller.all_off()
@@ -164,10 +166,13 @@ ui.on_message("get_initial_state", on_get_initial_state)
 ui.on_message("set_spa", on_set_spa)
 ui.on_message("set_filter", on_set_filter)
 ui.on_message("set_filter_rpm", on_set_filter_rpm)
+ui.on_message("set_pool_heater", on_set_pool_heater)
 ui.on_message("set_pool_lights", on_set_pool_lights)
-ui.on_message("set_spa_lights", on_set_spa_lights)
 ui.on_message("set_pool_temp", on_set_pool_temp)
 ui.on_message("set_spa_temp", on_set_spa_temp)
+ui.on_message("set_spa_heater", on_set_spa_heater)
+ui.on_message("set_spa_lights", on_set_spa_lights)
+ui.on_message("set_jets", on_set_jets)
 ui.on_message("all_off", on_all_off)
 ui.on_message("pda", on_pda)
 ui.on_message("reset", on_reset)

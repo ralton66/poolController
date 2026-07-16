@@ -27,6 +27,7 @@ const els = {
     filterOnBtn: document.getElementById('filter-on-btn'),
     spaLightsBtn: document.getElementById('spa-lights-btn'),
     poolLightsBtn: document.getElementById('pool-lights-btn'),
+    jetsBtn: document.getElementById('jets-btn'),
     allOffBtn: document.getElementById('all-off-btn'),
     pdaBtn:  document.getElementById('pda-btn'),
     debugPanel: document.getElementById('debug-panel'),
@@ -51,6 +52,7 @@ function bindControls() {
     els.poolHeaterBtn.addEventListener('click', () => socket.emit('set_pool_heater', {}));
     els.poolLightsBtn.addEventListener('click', ()  => socket.emit('set_pool_lights', {}));
     els.spaLightsBtn.addEventListener('click', ()   => socket.emit('set_spa_lights', {}));
+    els.jetsBtn.addEventListener('click', ()        => socket.emit('set_jets', {}));
     els.allOffBtn.addEventListener('click', ()      => socket.emit('all_off', {})); 
     els.pdaBtn.addEventListener('click', ()         => socket.emit('pda', {}));
     

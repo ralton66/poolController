@@ -20,6 +20,7 @@ enum Command {
     CMD_SPA,
     CMD_SPA_HEAT,
     CMD_SPA_LIGHT,
+    CMD_JETS,
     CMD_ALL_OFF,
     CMD_PDA,
     CMD_INSEQ

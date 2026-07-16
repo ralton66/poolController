@@ -130,11 +130,7 @@ class PoolState:
                     self.pool = False
                     self.filter_pump_on = False
             
-            
-            
             return
-
-            
 
         # --- ACTION 3: PROTOCOL END-OF-SEQUENCE TERMINATOR (0x02) ---
         # The master sends cmd 0x02 right after the last EQUIPMENT STATUS msg_long finishes
@@ -147,11 +143,11 @@ class PoolState:
             self.touch()
             
             # Only trigger parser if an equipment menu is currently staged in buffer memory
-            is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
-            
+            #is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
+            is_equipment_status = "EQUIPMENT STATUS" in self.virtual_screen.get(0, '')
             if is_equipment_status and self.screen_clr:
                 print("\n Protocol 0x02 Terminator Frame Received! Processing equipment stats...")
-                
+
                 # Visual verification printout of exactly what we're handing off
                 #print("--- Current Staged Equipment Matrix Layout ---")
                 for addr in sorted(self.virtual_screen.keys()):
@@ -162,6 +158,20 @@ class PoolState:
                 self._parse_screen_matrix()
                 self.screen_clr = False
 
+            # Only trigger parser if an equipment menu is currently staged in buffer memory
+            is_heater = "POOL HEAT" in self.virtual_screen.get(0, '')
+            if is_heater and self.screen_clr:
+                print("\n Protocol 0x02 Terminator Frame Received! Processing POOL HEAT Menu...")
+                
+                # Visual verification printout of exactly what we're handing off
+                #print("--- Current Staged Equipment Matrix Layout ---")
+                for addr in sorted(self.virtual_screen.keys()):
+                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
+                print("-----------------------------------------------\n")
+                
+                # Run the interpreter across the complete layout data block
+                #self._parse_screen_matrix()
+                self.screen_clr = False
 
     def _parse_screen_matrix(self):
         # Flatten all text segments currently residing in display memory into one block
@@ -206,6 +216,12 @@ class PoolState:
 
             if "SPA LIGHT" in status_block:
                 self.spa_light_on = "SPA LIGHT ON" in status_block
+
+            if "SPA HEAT" in status_block:
+                self.heater_on = "SPA HEAT ON" in status_block
+
+            if "POOL HEAT" in status_block:
+                self.heater_on = "POOL HEAT ON" in status_block
 
         # =====================================================================
         # SCREEN TYPE B: DYNAMIC MAIN HOME VIEW

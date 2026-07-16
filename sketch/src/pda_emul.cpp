@@ -38,6 +38,8 @@ ActionListManager::ActionListManager(Stream& mon) : monitor(mon) {
     delay_cycles = 5;
     poolLights = false;
     spaLights = false;
+    poolHeat = false;
+    spaHeat = false;
 }
 
 bool ActionListManager::cmdRxed(Command name){
@@ -52,7 +54,7 @@ bool ActionListManager::cmdRxed(Command name){
             monitor.println(i);
             
             if (name == CMD_PDA){
-                monitor.println("CMD_PDA received. No action list to execute.");
+                monitor.println("CMD_PDA received.");
                 return false;
             }
 
@@ -99,6 +101,51 @@ bool ActionListManager::cmdRxed(Command name){
                     monitor.print(',');
                     monitor.println(list.actions[3].num_pushes);
                 }
+            }
+
+            if (name == CMD_POOL_HEAT){
+                monitor.print("PL: ");
+                monitor.println(poolHeat);
+
+                if(poolHeat){
+                    list.actions[1].num_pushes = 1; // select only once if on->off
+                    poolHeat = false;
+                    monitor.print(list.actions[1].btnId);
+                    monitor.print(',');
+                    monitor.println(list.actions[1].num_pushes);
+                }else{
+                    list.actions[1].num_pushes = 2; // select twice if off->on
+                    poolHeat = true;
+                    monitor.print(list.actions[1].btnId);
+                    monitor.print(',');
+                    monitor.println(list.actions[1].num_pushes);
+                }
+            }
+
+            if (name == CMD_SPA_HEAT){
+                monitor.print("PL: ");
+                monitor.println(spaHeat);
+
+                if(spaHeat){
+                    list.actions[1].num_pushes = 1; // select only once if on->off
+                    spaHeat = false;
+                    monitor.print(list.actions[1].btnId);
+                    monitor.print(',');
+                    monitor.println(list.actions[1].num_pushes);
+                }else{
+                    list.actions[1].num_pushes = 2; // select twice if off->on
+                    spaHeat = true;
+                    monitor.print(list.actions[1].btnId);
+                    monitor.print(',');
+                    monitor.println(list.actions[1].num_pushes);
+                }
+            }
+            
+            if (name == CMD_SPA_HEAT){
+                poolHeat = false;
+                spaHeat = false;
+                poolLights = false;
+                spaLights = false;
             }
 
             activeCmd = true;

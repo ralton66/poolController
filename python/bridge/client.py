@@ -30,15 +30,18 @@ CMD_STATUS = 0x04
 
 
 class CommandType(str, Enum):
-    SPA_ON = "spa_on"
-    POOL_FILTER = "pool_filter"
     ALL_OFF = "all_off"
     PDA = "pda"
-    POOL_LIGHTS = "pool_lights"
-    SPA_LIGHTS = "spa_lights"
-    SPA_TEMP = "spa_temp"
+    POOL_FILTER = "pool_filter"
     POOL_TEMP = "pool_temp"
+    POOL_HEATER = "pool_heater"
+    POOL_LIGHTS = "pool_lights"
+    SPA_ON = "spa_on"
+    SPA_TEMP = "spa_temp"
+    SPA_HEATER = "spa_heater"
+    SPA_LIGHTS = "spa_lights"
     POOL_FILTER_RPM = "filter_rpm"
+    JETS = "jets"
     RESET = "reset"
     STATUS_POLL = "status_poll"
 

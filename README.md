@@ -1,5 +1,11 @@
 # pool
+ToDo
 
+Add button to turn on AUX Pump.  May want to change the controlinterface on the pump itself so it just comes on when enabled.
+Add capability to set temps and rpm
+
+
+Add other menus for rest off the pda tree - salt levels, boost, freeze protect, programs...
 
 
 VSP1 SPD ADJ is line 3
@@ -26,3 +32,4 @@ git push -u origin HEAD
  arduino-app-cli app logs user:poolController --follow
 
 arduino-app-cli app start poolController
+

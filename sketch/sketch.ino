@@ -125,13 +125,9 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
     if (raw_bytes == nullptr || length == 0) {
         return; 
     }
-    //rs485WriteRaw(PKT_PDA_ACK, 9);
     
     if(control_command == CMD_PDA) { 
         printPacketBuffer(Monitor, raw_bytes, length);
-        Monitor.println("-----PDA MODE-----");
-
-        pdaSynced = true;
         return;
     
     }else{
@@ -145,7 +141,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
             // Check Control Inputs and only push the button 
             // if the PDA is on the main menu and not busy processing a command
             if(manager.isBusy() && mainMenu) {
-                printPacketBuffer(Monitor, raw_bytes, length);
+                //printPacketBuffer(Monitor, raw_bytes, length);
                 manager.pushNextButton(Serial1, highlighted_line);
                 return;
             }
@@ -153,7 +149,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
             //Reply with simple keep alive for the first few packet acks
             if(pdaConnecting){
                 rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                printPacketRsp(Monitor, PKT_PDA_KA, 9);
+                //printPacketRsp(Monitor, PKT_PDA_KA, 9);
                 cmd_seq++;
                 if(cmd_seq >= 3){
                     pdaConnecting = false;
@@ -177,7 +173,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 case 0x00: // Initial Connect
                     pdaConnecting = true;
                     rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                    printPacketRsp(Monitor, PKT_PDA_KA, 9);
+                    //printPacketRsp(Monitor, PKT_PDA_KA, 9);
                     Monitor.println("-----CONNECTING-----");
                     break;
                 case 0x02: // Keep Alive
@@ -189,8 +185,8 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                     break;
                 case 0x08: // Highlight line
                     rs485WriteRaw(Serial1, pkt_rsp, 9);
-                    Monitor.print("Line selected: ");
-                    Monitor.println(highlighted_line, HEX);
+                    //Monitor.print("Line selected: ");
+                    //Monitor.println(highlighted_line, HEX);
                     break;
                 case 0x09: //Clear Screen
                     rs485WriteRaw(Serial1, pkt_rsp, 9);
@@ -217,21 +213,22 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 {
                     pdaConnecting = true;
                     rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                    printPacketRsp(Monitor, PKT_PDA_KA, 9);
-                    Monitor.println("-----default-----");
+                    //printPacketRsp(Monitor, PKT_PDA_KA, 9);
+                    //Monitor.println("-----default-----");
                     break;
                 }
             }
             //Only print the long msgs
-            //if(raw_bytes[1] == 0x04){            
+            if(raw_bytes[1] == 0x04){            
                 printPacketBuffer(Monitor, raw_bytes, length);
                 printPacketRsp(Monitor, pkt_rsp, 9);
-            //}
+            }
+
             //Send packet to MPU
             mainMenu = false;
             bytesToHex(packetBuffer, pIdx, hexBuffer);
             Bridge.notify("pda_packet", hexBuffer);  
-            delay(10);
+            //delay(10);
         }
     }
 }
@@ -252,9 +249,9 @@ void processByte(uint8_t c) {
             } else {
                 state = 0;
                 Monitor.print("--Failed STX--: ");
-                //Monitor.print("ESC: ");
+                Monitor.print("ESC: ");
                 Monitor.println(c, HEX);
-                //printPacketBuffer(Monitor, packetBuffer, pIdx);
+                printPacketBuffer(Monitor, packetBuffer, pIdx);
             }
             break;
         case 2: // Reading packet data, looking for ETX or escape
@@ -277,9 +274,6 @@ void processByte(uint8_t c) {
                     Monitor.println("---------MAX PACKET SIZE---------- ");
                 }
                 state = 2;
-                //Monitor.print("ESC: ");
-                //Monitor.println(c, HEX);
-                //printPacketBuffer(Monitor, packetBuffer, pIdx);
             }
             break;
     }
@@ -338,53 +332,56 @@ void control_input(String cmdStr){
         if (cmdStr == "pda")         control_command = CMD_PDA;
         if (cmdStr == "pool_lights") control_command = CMD_POOL_LIGHTS;
         if (cmdStr == "spa_lights")  control_command = CMD_SPA_LIGHT;
+        if (cmdStr == "pool_heater") control_command = CMD_POOL_HEAT;
+        if (cmdStr == "spa_heater")  control_command = CMD_SPA_HEAT;
+        if (cmdStr == "jets")        control_command = CMD_JETS;
 
         manager.cmdRxed(control_command);
-        if(control_command != CMD_PDA){
+        if(control_command != CMD_PDA)
             control_command = CMD_UNKNOWN;
-        }else if(control_command == CMD_PDA){
-            if(!pdaSynced)
-                pdaSynced = true;
-            else if(bidx > 0) {
-                st = 0;
-                uint8_t c;
-                Monitor.print("Buffer Data: ");
-                for(int i = 0; i < bidx; i++){
-                    c = pbuff[i];
+        else if(!pdaSynced)
+            pdaSynced = false; // need to set this to true to enable fast dump
 
-                    // Print a leading zero if the byte is less than 16 (0x10)
-                    if (pbuff[i] < 16) 
-                        Monitor.print("0");
-                    Monitor.print(pbuff[i], HEX);
+    }else if(control_command == CMD_PDA){
 
-                    switch (st) {
-                        case 0: // Idle state, waiting for STX
-                            if (c == 0x10) st = 1;
-                            break;
-                        case 1: // Received STX, expecting start of packet
-                            if (c == 0x02) st = 2;
-                            else  st = 0;
-                            break;
-                        case 2: // Reading packet data, looking for ETX or escape
-                            if (c == 0x10) st = 3;
+        if(bidx > 0) {
+            st = 0;
+            uint8_t c;
+            Monitor.print("Buffer Data: ");
+            for(int i = 0; i < bidx; i++){
+                c = pbuff[i];
 
-                            break;
-                        case 3: // After escape character, determine if it's an escaped byte or end of packet
-                            if (c == 0x03) {
-                                Monitor.println(" ");
-                                st = 0;
-                            } else st = 2;
-                            break;
-                    }
+                // Print a leading zero if the byte is less than 16 (0x10)
+                if (pbuff[i] < 16) 
+                    Monitor.print("0");
+                Monitor.print(pbuff[i], HEX);
+
+                switch (st) {
+                    case 0: // Idle state, waiting for STX
+                        if (c == 0x10) st = 1;
+                        break;
+                    case 1: // Received STX, expecting start of packet
+                        if (c == 0x02) st = 2;
+                        else  st = 0;
+                        break;
+                    case 2: // Reading packet data, looking for ETX or escape
+                        if (c == 0x10) st = 3;
+
+                        break;
+                    case 3: // After escape character, determine if it's an escaped byte or end of packet
+                        if (c == 0x03) {
+                            Monitor.println(" ");
+                            st = 0;
+                        } else st = 2;
+                        break;
                 }
-                Monitor.println();
-
-                pdaSynced = false;
-                bidx = 0;
             }
-        
-            control_command = CMD_UNKNOWN;
+            Monitor.println();
+            pdaSynced = false;
+            bidx = 0;
         }
+        control_command = CMD_UNKNOWN;
+
     }else{
         Monitor.println("Control Input ignored. Still processing last input");
     }
@@ -409,19 +406,17 @@ void setup() {
     Bridge.provide("RS485_send", rs485_tx);
     Bridge.provide("control_cmd", control_input);
     
-
     delay(3000);
     Monitor.println("PoolController RS485 ready");
 }
 
 void loop() {
+    // Very fast dump mode which dumps after PDA is turned off
     if(pdaSynced){
         if (Serial1.available() > 0)    
             pbuff[bidx++] = Serial1.read();
-        
     }
     
-
     // Check if a byte has arrived from the RS-485 circuit
     else if (Serial1.available() > 0) {
 
