@@ -197,29 +197,29 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     switch(action.btnId){
         case 4: // SELECT
             rs485WriteRaw(serial1, PKT_PDA_SELECT, 9);
-            monitor.print("SELECT ");
+            //monitor.print("SELECT ");
             break;
         case 5: // DOWN
             rs485WriteRaw(serial1, PKT_PDA_DOWN, 9);
-            monitor.print("DOWN ");
+            //monitor.print("DOWN ");
             break;
         case 2: // BACK
             rs485WriteRaw(serial1, PKT_PDA_BACK, 9);
-            monitor.print("BACK ");
+            //monitor.print("BACK ");
             break;
         case 6: // UP
             rs485WriteRaw(serial1, PKT_PDA_UP, 9);
-            monitor.print("UP ");
+            //monitor.print("UP ");
             break;
     }
 
     cmd_seq_delay = true;
     delay_cycles = action.delay_cycles;
-    monitor.print(currActionIndex);
-    monitor.print(',');
-    monitor.print(action.btnId);
-    monitor.print(',');
-    monitor.println(action.num_pushes);
+    //monitor.print(currActionIndex);
+    //monitor.print(',');
+    //monitor.print(action.btnId);
+    //monitor.print(',');
+    //monitor.println(action.num_pushes);
 
     pushed++;
     if(pushed >= action.num_pushes){

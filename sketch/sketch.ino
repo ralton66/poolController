@@ -143,6 +143,9 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
             if(manager.isBusy() && mainMenu) {
                 //printPacketBuffer(Monitor, raw_bytes, length);
                 manager.pushNextButton(Serial1, highlighted_line);
+                bytesToHex(packetBuffer, pIdx, hexBuffer);
+                Bridge.notify("pda_packet", hexBuffer);  
+
                 return;
             }
                 

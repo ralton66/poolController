@@ -9,8 +9,9 @@ const els = {
     mode: document.getElementById('mode'),
     airTemp: document.getElementById('air-temp'),
     waterTemp: document.getElementById('water-temp'),
+    targetTemp: document.getElementById('target-temp'),
     filterPumpOn: document.getElementById('filter-pump-on'),
-    auxState: document.getElementById('aux-state'),
+    jetState: document.getElementById('jet-pump-on'),
     heaterState: document.getElementById('heater-state'),
     poolLightState: document.getElementById('pool-light-state'),
     spaLightState: document.getElementById('spa-light-state'),
@@ -46,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindControls() {
      
     els.filterOnBtn.addEventListener('click', ()    => socket.emit('set_filter', {}));
-    els.spaOnBtn.addEventListener('click', ()       => socket.emit('set_spa', {}));
     els.spaOnBtn.addEventListener('click', ()       => socket.emit('set_spa', {}));
     els.spaHeaterBtn.addEventListener('click', ()   => socket.emit('set_spa_heater', {}));
     els.poolHeaterBtn.addEventListener('click', () => socket.emit('set_pool_heater', {}));
@@ -122,8 +122,9 @@ function applyState(s) {
     els.mode.textContent = (s.mode);
     els.airTemp.textContent = fmtTemp(s.air_temp_f);
     els.waterTemp.textContent = fmtTemp(s.water_temp_f);
+    els.targetTemp.textContent = fmtTemp(s.target_temp_f);
     els.filterPumpOn.textContent = fmtBool(s.filter_pump_on);
-    els.auxState.textContent = fmtBool(s.aux_pump_on);
+    els.jetState.textContent = fmtBool(s.jet_pump_on);
     els.heaterState.textContent = fmtBool(s.heater_on);
     els.poolLightState.textContent = fmtBool(s.pool_light_on);
     els.spaLightState.textContent = fmtBool(s.spa_light_on);

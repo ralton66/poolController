@@ -36,7 +36,6 @@ ui = WebUI()
 
 def broadcast_state():
     snap = monitor.get_snapshot()
-    print("broadcast_state: ", snap)
     ui.send_message("state_update", snap)
     if DEBUG_PROTOCOL:
         ui.send_message("protocol_update", snap.get("last_packet", snap))

@@ -100,7 +100,7 @@ const ListDefinition cmdList[] = {
             {5, 5, 4}, // Press DOWN five times
             {4, 1, 15}, // Press SELECT once
             {5, 7, 4}, // Press DOWN seven times
-            {4, 2, 5}, // Press SELECT twice times
+            {4, 1, 5}, // Press SELECT twice times
             {2, 2, 10}  // Press BACK/MENU once to clear screen
         },
         5

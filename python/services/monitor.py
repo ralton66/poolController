@@ -44,8 +44,12 @@ class PoolMonitor:
             with self._lock:
                 self.state.apply_parsed(parsed, hex_payload)
                 self.state.last_error = None
-            self._notify()
+            
+            if(self.state.updated):
+                self._notify()
+
         except Exception as e:
+            print("WTF")
             with self._lock:
                 self.state.last_error = str(e)
                 self.state.last_packet = {"error": str(e), "hex": hex_payload}
@@ -61,7 +65,6 @@ class PoolMonitor:
         update_threshold = UPDATE_SECONDS if 'UPDATE_SECONDS' in globals() else 10
         if time.time() - self.last_update > update_threshold:
             self.last_update = time.time()
-            #print(f"Update time: {self.last_update}")
             if self._on_update:
                 self._on_update(self.state)
 

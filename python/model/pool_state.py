@@ -10,7 +10,7 @@ from typing import Any
 from protocol.pda_messages import ParsedPacket
 from bridge.client import BridgeClient, Command, CommandType
 
-STALE_SECONDS = 30
+STALE_SECONDS = 60
 
 class PoolMode(str, Enum):
     OFF = "off"
@@ -26,6 +26,8 @@ class PoolState:
         self.bridge = bridge
         # Master hardware display memory tracking. Keys are raw Jandy lead bytes.
         self.virtual_screen: dict[int, str] = {}
+        self.line_number = 0
+        self.line_text = b""
         self.off_ctr: int = 0
         
         # Observable parsed properties
@@ -34,6 +36,7 @@ class PoolState:
         self.water_temp_f: int | None = None
         self.pool_setpoint_f: int | None = None
         self.spa_setpoint_f: int | None = None
+        self.target_temp_f: int | None = None
         self.salt_ppm: int | None = None
         self.swg_percent: int | None = None
         self.filter_rpm: int | None = None
@@ -41,14 +44,17 @@ class PoolState:
         self.spa: bool = False
         self.pool: bool = False
         self.filter_pump_on: bool = False
-        self.aux_pump_on: bool = False
+        self.jet_pump_on: bool = False
         self.heater_on: bool = False
         self.pool_light_on: bool = False
         self.spa_light_on: bool = False
         self.valve: str | None = None
         self.swg_status: str | None = None
+        self.time_string: str | None = None
+        self.day_of_week: str | None = None
         self.undefined_state: bool = False
         self.last_error: str | None = None
+        self.updated: bool = False
         
         # Watchdog Tracking
         self.last_update: float = 0.0
@@ -78,6 +84,27 @@ class PoolState:
             self.touch()
             self.virtual_screen.clear()
             self.screen_clr = True
+
+            # If updated then clear the state and get a full update.
+            #what happens in ither screens????
+            if(self.updated):
+                print("  Main screen update complete. PoolState updated.")
+                self.updated = False  # Reset the updated flag after snapshotting
+                self.pool_light_on = False
+                self.spa_light_on = False
+                self.filter_pump_on = False
+                self.jet_pump_on = False
+                self.pool = False
+                self.spa = False
+                self.mode = PoolMode.OFF
+                self.heater_on = False
+                self.swg_percent = None
+                self.salt_ppm = None
+                self.air_temp_f = None
+                self.water_temp_f = None
+                self.undefined_state = False
+                self.filter_rpm = None
+                self.filter_watts = None 
             return
 
         # --- ACTION 2: DATA STREAM GATHERING ---
@@ -86,13 +113,14 @@ class PoolState:
                 return
             
             self.touch()
-
             pkt = parsed.to_dict()
             pkt["hex"] = hex_payload
             self.last_packet = pkt  
 
             lead_byte = raw_data[0]
+            self.line_number = lead_byte
             raw_text_bytes = raw_data[1:]
+            
             
             # Drop trailing stale buffer data past null terminators
             if b"\x00" in raw_text_bytes:
@@ -102,192 +130,189 @@ class PoolState:
             text_chunk = raw_text_bytes.decode("ascii", errors="replace").strip()
             text_chunk = text_chunk.replace("`", "F").upper()
 
-            # Store in screen dictionary memory
-            self.virtual_screen[lead_byte] = text_chunk
-            
-            # Trigger main menu parsing ONLY when the definitive final row lands
-            if lead_byte == 130:
-                print("\n Main Temperature Stream Complete! Parsing home view...")
-                for addr in sorted(self.virtual_screen.keys()):
-                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
-                print("-----------------------------------------------\n")
-                
+            # Store in line_text for _parse_line
+            self.line_text = text_chunk
+            flags = 0
+
+            print(f"  Line # 0x{self.line_number:02X} ({self.updated}): '{self.line_text}'")
+            self._parse_line()
+
+            # Need a step to aggregate the main screen data such as pool and spa off at this point.
+
+            if self.line_number == 130:
                 #reset counter because we recieved at least a temp update
                 self.off_ctr = 0
-
-                self._parse_screen_matrix()
-                self.screen_clr = False
                 self.bridge.got_main(True)
+                self.updated = True
             
-            if lead_byte == 64:
+            # Check if we are getting time updates only.
+            # this indicates that the pool is off because there are no associated 
+            # temperature updates on the main menu.  
+            # If we get 3 time updates in a row, then we can assume the pool is off.
+            if self.line_number == 64:
                 self.off_ctr += 1
                 print(f"  Time line counter: {self.off_ctr} ")
                 if( self.off_ctr > 2):
                     self.bridge.got_main(True)
-                    self.virtual_screen.clear()
                     self.mode = PoolMode.OFF
                     self.spa = False
                     self.pool = False
                     self.filter_pump_on = False
+                    self.updated = True           
+        return
+
+
+    def _parse_line(self):
+
+        if "AQUAPURE" in self.line_text:
+            ap_match = re.search(r"AQUAPURE\s*(\d+)\s*%", self.line_text)
+            if ap_match: 
+                self.swg_percent = int(ap_match.group(1))
+
+        if "SALT" in self.line_text:
+            salt_match = re.search(r"SALT\s*(\d+)", self.line_text)
+            if salt_match: 
+                self.salt_ppm = int(salt_match.group(1))
+
+        # Note: slice or search flexible numeric groupings to catch trailing anomalies
+        if "RPM:" in self.line_text:
+            rpm_match = re.search(r"RPM:\s*(\d+)", self.line_text)
+            if rpm_match: 
+                self.filter_rpm = int(rpm_match.group(1))
+
+        # 4. Parse Electrical Load draw (e.g., "WATTS: 326")
+        if "WATTS:" in self.line_text:
+            watts_match = re.search(r"WATTS:\s*(\d+)", self.line_text)
+            if watts_match: 
+                self.filter_watts = int(watts_match.group(1))
+
+        if "POOL LIGHT" in self.line_text:
+            self.pool_light_on = True
+            print("PoolState: Pool Light is on.")
+
+        if "SPA LIGHT" in self.line_text:
+            self.spa_light_on = True
+
+        # Check if main menu shows Pool mode ON
+        if all(w in self.line_text for w in ["POOL MODE", "ON"]):
+            self.filter_pump_on = True
+            self.mode = PoolMode.POOL
+            self.pool = True
+            self.spa = False
+            #print("Parseline: Pool mode is on, filter pump enabled.")
+
+        # Check if main menu shows Spa mode on 
+        if all(w in self.line_text for w in ["SPA MODE", "ON"]):
+            self.filter_pump_on = True
+            self.mode = PoolMode.SPA
+            self.pool = False
+            self.spa = True
+
+        # Check if main menu shows Jet pump on 
+        if all(w in self.line_text for w in ["JET PUMP", "ON"]):
+            self.jet_pump_on = True
+        
+        # Check if main menu shows spa heater on 
+        #############TODO: SPA HEATER TURN OFF POOL HEATER WHEN it comes through
+        if all(w in self.line_text for w in ["SPA HEATER", "ON"]):
+            self.heater_on = True
+        elif all(w in self.line_text for w in ["SPA HEATER", "OFF"]):
+            self.heater_on = False
+        elif all(w in self.line_text for w in ["SPA HEATER", "ENA"]):
+            self.heater_on = True   
+
+        # Check if main menu shows pool heater on 
+        if all(w in self.line_text for w in ["POOL HEATER", "ON"]):
+            print("Pool HEATER ON")
+            self.heater_on = True
+        elif all(w in self.line_text for w in ["POOL HEATER", "OFF"]):
+            print("Pool HEATER OFF")
+            self.heater_on = False
+        elif all(w in self.line_text for w in ["POOL HEATER", "ENA"]):
+            print("Pool HEATER ENA")
+            self.heater_on = True   
+
+
+        # Parse temperature line on home screen (line 0x82) for Air and Water temps
+        if self.line_number == 0x82:
+            # 1. Slice the left half of the display buffer for Air Temp
+            left_half = self.line_text[:8]
+            air_match = re.search(r"(\d+)\s*F", left_half)
+            if air_match:
+                self.air_temp_f = int(air_match.group(1))
+
+            # 2. Slice the right half of the display buffer for Water Temp
+            right_half = self.line_text[8:]
+            water_match = re.search(r"(\d+)\s*F", right_half)
             
-            return
+            if water_match:
+                self.water_temp_f = int(water_match.group(1))
 
-        # --- ACTION 3: PROTOCOL END-OF-SEQUENCE TERMINATOR (0x02) ---
-        # The master sends cmd 0x02 right after the last EQUIPMENT STATUS msg_long finishes
-        if dest == 0x60 and cmd == 0x02:
+        if "POOL HEAT" in self.line_text and self.line_number == 0x00:
+            print("Pool Heat Menu")
 
-            # Screen has alread been written so return and wait for a screen clear
-            if not self.screen_clr:
-                return
+        if "SET TO" in self.line_text and self.line_number == 0x03:
+            print("Pool Heat Menu")
 
-            self.touch()
+            # re.search looks for one or more digits followed by 'F'
+            # 'SET TO 91FF' matches '91' in group 1
+            match = re.search(r"(\d+)\s*F", self.line_text)
             
-            # Only trigger parser if an equipment menu is currently staged in buffer memory
-            #is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
-            is_equipment_status = "EQUIPMENT STATUS" in self.virtual_screen.get(0, '')
-            if is_equipment_status and self.screen_clr:
-                print("\n Protocol 0x02 Terminator Frame Received! Processing equipment stats...")
-
-                # Visual verification printout of exactly what we're handing off
-                #print("--- Current Staged Equipment Matrix Layout ---")
-                for addr in sorted(self.virtual_screen.keys()):
-                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
-                print("-----------------------------------------------\n")
+            if match:
+                temp_value = int(match.group(1))
                 
-                # Run the interpreter across the complete layout data block
-                self._parse_screen_matrix()
-                self.screen_clr = False
-
-            # Only trigger parser if an equipment menu is currently staged in buffer memory
-            is_heater = "POOL HEAT" in self.virtual_screen.get(0, '')
-            if is_heater and self.screen_clr:
-                print("\n Protocol 0x02 Terminator Frame Received! Processing POOL HEAT Menu...")
+                # Check the context to see if it's the Pool or Spa setpoint context
+                # Usually line 3 represents a target temperature confirmation message.
+                print(f"Captured valid target setpoint update: {temp_value}°F")
                 
-                # Visual verification printout of exactly what we're handing off
-                #print("--- Current Staged Equipment Matrix Layout ---")
-                for addr in sorted(self.virtual_screen.keys()):
-                    print(f"  Line # 0x{addr:02X} ({addr:03d}): '{self.virtual_screen[addr]}'")
-                print("-----------------------------------------------\n")
+                # Save the value to your state model
+                self.target_temp_f = temp_value
+
+
+        if self.line_number == 0x40:
+            # Preprocessor output for this chunk will look like: "FRI  2:14PM"
+            # Regex breakdown:
+            # ([A-Z]{3})    -> Capture 3 uppercase letters for the Day (e.g., FRI)
+            # \s+           -> Bridge any middle alignment spaces
+            # (\d{1,2}:\d{2})\s*(AM|PM) -> Capture the time block and AM/PM token
+            match = re.search(r"([A-Z]{3})\s+(\d{1,2}:\d{2})\s*(AM|PM)", self.line_text)
+            
+            if match:
+                day_of_week = match.group(1)   # "FRI"
+                clock_time  = match.group(2)   # "2:14"
+                ampm_marker = match.group(3)   # "PM"
                 
-                # Run the interpreter across the complete layout data block
-                #self._parse_screen_matrix()
-                self.screen_clr = False
-
-    def _parse_screen_matrix(self):
-        # Flatten all text segments currently residing in display memory into one block
-        status_block = " ".join(self.virtual_screen.values()).upper()
-
-        # Determine if the active frame set represents the Diagnostic Status view
-        is_equipment_status = any("EQUIPMENT STATUS" in text for text in self.virtual_screen.values())
-
-        # =====================================================================
-        # SCREEN TYPE A: DIAGNOSTIC / EQUIPMENT STATUS PROCESSING
-        # =====================================================================
-        if is_equipment_status:
-            # 1. Parse AquaPure Output Percentage (e.g., "AQUAPURE 40%")
-            if "AQUAPURE" in status_block:
-                ap_match = re.search(r"AQUAPURE\s*(\d+)\s*%", status_block)
-                if ap_match: 
-                    self.swg_percent = int(ap_match.group(1))
-
-            # 2. Parse SWG Salt Level (e.g., "SALT 3100 PPM")
-            if "SALT" in status_block:
-                salt_match = re.search(r"SALT\s*(\d+)", status_block)
-                if salt_match: 
-                    self.salt_ppm = int(salt_match.group(1))
-
-            # 3. Parse Filter Pump Performance Metrics
-            # Note: We slice or search flexible numeric groupings to catch trailing anomalies
-            if "RPM" in status_block:
-                rpm_match = re.search(r"RPM:\s*(\d+)", status_block)
-                if rpm_match: 
-                    self.filter_rpm = int(rpm_match.group(1))
-
-            # 4. Parse Electrical Load draw (e.g., "WATTS: 326")
-            if "WATTS" in status_block:
-                watts_match = re.search(r"WATTS:\s*(\d+)", status_block)
-                if watts_match: 
-                    self.filter_watts = int(watts_match.group(1))
-
-            # 5. Global Aux Toggle Monitors
-            if "POOL LIGHT" in status_block:
-                self.pool_light_on = "POOL LIGHT ON" in status_block
-                print("PoolState: Pool Light is on.")
-
-            if "SPA LIGHT" in status_block:
-                self.spa_light_on = "SPA LIGHT ON" in status_block
-
-            if "SPA HEAT" in status_block:
-                self.heater_on = "SPA HEAT ON" in status_block
-
-            if "POOL HEAT" in status_block:
-                self.heater_on = "POOL HEAT ON" in status_block
-
-        # =====================================================================
-        # SCREEN TYPE B: DYNAMIC MAIN HOME VIEW
-        # =====================================================================
-        else:
-            l2_labels = self.virtual_screen.get(0x01, "")
-            l3_values = self.virtual_screen.get(0x82, "")  # e.g., "68F     76F"
-
-            if l3_values:
-                # 1. Slice the left half of the display buffer for Air Temp
-                left_half = l3_values[:8]
-                air_match = re.search(r"(\d+)\s*F", left_half)
-                if air_match:
-                    self.air_temp_f = int(air_match.group(1))
-
-                # 2. Slice the right half of the display buffer for Water Temp
-                right_half = l3_values[8:]
-                water_match = re.search(r"(\d+)\s*F", right_half)
+                # Combine into a clean timestamp string
+                full_time_string = f"{day_of_week} {clock_time} {ampm_marker}"
                 
-                if water_match:
-                    self.water_temp_f = int(water_match.group(1))
-                    
-            # Home-screen operational mode decoders
-            if "POOL MODE" in status_block:
+                # Store it directly in your monitor state object
+                self.time_string = full_time_string
+                self.day_of_week = day_of_week
 
-                self.mode = PoolMode.POOL if "POOL MODE     ON" in status_block else self.mode
-                if "POOL MODE     ON" in status_block:
-                    self.filter_pump_on = True
-                    self.mode = PoolMode.POOL
-                    self.pool = True
-                    self.spa = False
-                    print("PoolMonitor: Pool mode is on, filter pump enabled.")
 
-            if "SPA MODE" in status_block:
-                self.mode = PoolMode.SPA if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block else self.mode
-                if "SPA MODE     ON" in status_block or "SPA MODE      ON" in status_block:
-                    self.filter_pump_on = True
-                    self.mode = PoolMode.SPA
-                    self.spa = True
-                    self.pool = False
-                    print("PoolMonitor: Spa mode is on, filter pump enabled.")
-                    
-            if "ALL OFF" in status_block:
-                self.mode = PoolMode.OFF
-                self.spa = False
-                self.pool = False
-                self.filter_pump_on = False
+        if "ALL OFF" in self.line_text:
+            self.mode = PoolMode.OFF
+            self.spa = False
+            self.pool = False
+            self.filter_pump_on = False
+
 
     def to_dict(self) -> dict[str, Any]:
         self.check_staleness()
-        
-        # Convert internal hex coordinate keys to clean string hex keys for JSON compatibility
-        export_display = {f"0x{k:02X}": v for k, v in self.virtual_screen.items()}
-        
+      
         return {
             "mode": self.mode.value if hasattr(self.mode, 'value') else self.mode,
             "air_temp_f": self.air_temp_f,
             "water_temp_f": self.water_temp_f,
             "pool_setpoint_f": self.pool_setpoint_f,
             "spa_setpoint_f": self.spa_setpoint_f,
+            "target_temp_f": self.target_temp_f,
             "salt_ppm": self.salt_ppm,
             "swg_percent": self.swg_percent,
             "filter_rpm": self.filter_rpm,
             "filter_watts": self.filter_watts,
             "filter_pump_on": self.filter_pump_on,
-            "aux_pump_on": self.aux_pump_on,
+            "jet_pump_on": self.jet_pump_on,
             "heater_on": self.heater_on,
             "pool_light_on": self.pool_light_on,
             "spa_light_on": self.spa_light_on,
@@ -295,18 +320,18 @@ class PoolState:
             "pool": self.pool,
             "valve": self.valve,
             "swg_status": self.swg_status,
+            "time": self.time_string,
+            "dow": self.day_of_week,
+            "off_ctr": self.off_ctr,
             "undefined_state": self.undefined_state,
             "last_error": self.last_error,
-            "connection_ok": self.connection_ok,
-            "last_update": self.last_update,
-            "last_packet": dict(self.last_packet) if self.last_packet else {},
-            
-            "display": export_display
+            "connection_ok": self.connection_ok
         }
 
     def cloud_read_dict(self) -> dict[str, Any]:
         """Subset exposed as Cloud read properties (AC-12)."""
         d = self.to_dict()
+        print(f"cloud_read_dict: {d}")
         return {
             "water_temp_f": d.get("water_temp_f"),
             "air_temp_f": d.get("air_temp_f"),
