@@ -67,13 +67,13 @@ def on_set_filter(client, data):
 def on_set_pool_heater(client, data):
     controller.pool_heater()
 
-def on_set_pool_temp(client, data): 
-    print("main: on_set_pool_temp ")
+def on_set_temp(client, data): 
+    print("main: on_set_temp ")
     try:
         temp_f = int(data.get("temp_f", 89)) if isinstance(data, dict) else 89
     except (TypeError, ValueError):
         temp_f = 89
-    controller.pool_temp(temp_f)
+    controller.temp_ask(temp_f)
 
 def on_set_pool_lights(client, data):
     controller.set_pool_lights()
@@ -93,14 +93,6 @@ def on_set_spa(client, data):
 
 def on_set_spa_heater(client, data):
     controller.spa_heater()
-
-def on_set_spa_temp(client, data):
-    print("main: on_set_spa_temp ")
-    try:
-        temp_f = int(data.get("temp_f", 102)) if isinstance(data, dict) else 102
-    except (TypeError, ValueError):
-        temp_f = 102
-    controller.spa_temp(temp_f)
 
 def on_set_spa_lights(client, data):
     controller.set_spa_lights()
@@ -167,8 +159,7 @@ ui.on_message("set_filter", on_set_filter)
 ui.on_message("set_filter_rpm", on_set_filter_rpm)
 ui.on_message("set_pool_heater", on_set_pool_heater)
 ui.on_message("set_pool_lights", on_set_pool_lights)
-ui.on_message("set_pool_temp", on_set_pool_temp)
-ui.on_message("set_spa_temp", on_set_spa_temp)
+ui.on_message("set_temp", on_set_temp)
 ui.on_message("set_spa_heater", on_set_spa_heater)
 ui.on_message("set_spa_lights", on_set_spa_lights)
 ui.on_message("set_jets", on_set_jets)

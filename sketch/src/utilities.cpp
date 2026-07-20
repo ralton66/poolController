@@ -7,6 +7,41 @@ static int hexNibble(char c) {
     return -1;
 }
 
+bool str_to_int(const char* text, int* result) {
+    if (text == NULL || result == NULL) return false;
+
+    const char* p = text;
+    bool found_number = false;
+    bool is_negative = false;
+    int value = 0;
+
+    while (*p != '\0') {
+        // Handle numerical digits
+        if (*p >= '0' && *p <= '9') {
+            found_number = true;
+            value = (value * 10) + (*p - '0');
+        } 
+        // Handle negative sign (only if it occurs immediately before the number block begins)
+        else if (*p == '-' && !found_number) {
+            if (*(p + 1) >= '0' && *(p + 1) <= '9') {
+                is_negative = true;
+            }
+        } 
+        // Break instantly if we encounter any trailing noise (like 'F', 'FF', or spaces) 
+        // after already beginning to parse a valid numerical block.
+        else if (found_number) {
+            break;
+        }
+        p++; // Move to next character
+    }
+
+    if (found_number) {
+        *result = is_negative ? -value : value;
+        return true;
+    }
+
+    return false; // No parseable digits found
+}
 
 bool validateChecksum(const uint8_t* buf, size_t len) {
     if (len < 2)

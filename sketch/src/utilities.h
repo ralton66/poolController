@@ -74,6 +74,7 @@ const uint8_t MAX_PACKET_COUNT = 8;
 const uint8_t MAX_PACKET_LEN   = 24; 
 
 static int hexNibble(char c);
+bool str_to_int(const char* text, int* result);
 void bytesToHex(uint8_t* in, int len, char* out);
 bool validateChecksum(const uint8_t* buf, size_t len);
 void rs485SetTransmit(bool tx);

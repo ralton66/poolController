@@ -104,48 +104,17 @@ bool ActionListManager::cmdRxed(Command name){
             }
 
             if (name == CMD_POOL_HEAT){
-                monitor.print("PL: ");
-                monitor.println(poolHeat);
-
-                if(poolHeat){
-                    list.actions[1].num_pushes = 1; // select only once if on->off
+                if(poolHeat)
                     poolHeat = false;
-                    monitor.print(list.actions[1].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[1].num_pushes);
-                }else{
-                    list.actions[1].num_pushes = 2; // select twice if off->on
+                else
                     poolHeat = true;
-                    monitor.print(list.actions[1].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[1].num_pushes);
-                }
             }
 
             if (name == CMD_SPA_HEAT){
-                monitor.print("PL: ");
-                monitor.println(spaHeat);
-
-                if(spaHeat){
-                    list.actions[1].num_pushes = 1; // select only once if on->off
+                if(spaHeat)
                     spaHeat = false;
-                    monitor.print(list.actions[1].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[1].num_pushes);
-                }else{
-                    list.actions[1].num_pushes = 2; // select twice if off->on
+                else
                     spaHeat = true;
-                    monitor.print(list.actions[1].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[1].num_pushes);
-                }
-            }
-            
-            if (name == CMD_SPA_HEAT){
-                poolHeat = false;
-                spaHeat = false;
-                poolLights = false;
-                spaLights = false;
             }
 
             activeCmd = true;
@@ -160,8 +129,6 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     if(activeCmd == false)
         return false;
 
-    //monitor.print("line: ");
-    //monitor.println(line);
     // This is used to delay next KEY command for a few cycles to ensure the last KEY command is
     // recieved and acted on before proceeding
     if (cmd_seq_delay){
@@ -179,9 +146,6 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     if(currActionIndex >= list.count){
         if(line != 4){ // If not on the main menu, send a BACK command to return to the main menu
             rs485WriteRaw(serial1, PKT_PDA_BACK, 9);
-            //monitor.print("line: ");
-            //monitor.print(line);
-            //monitor.println("send PKT_PDA_BACK ");
             return true;
         }
 
@@ -229,3 +193,10 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     return true;
 }
 
+void ActionListManager::setUpdate(int btn){
+
+    list.ResetAction();      
+    list.AddAction(btn, 1, 5);
+    list.AddAction(4, 1, 5); // press select
+    currActionIndex = 0;
+}

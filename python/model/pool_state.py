@@ -13,15 +13,14 @@ from bridge.client import BridgeClient, Command, CommandType
 STALE_SECONDS = 60
 
 class PoolMode(str, Enum):
-    OFF = "off"
-    POOL = "pool"
-    SPA = "spa"
+    OFF = "Off"
+    POOL = "Pool"
+    SPA = "Spa"
 
 class PoolState:
     
 
     def __init__(self, bridge: BridgeClient):
-
 
         self.bridge = bridge
         # Master hardware display memory tracking. Keys are raw Jandy lead bytes.
@@ -34,8 +33,7 @@ class PoolState:
         self.mode = PoolMode.OFF
         self.air_temp_f: int | None = None
         self.water_temp_f: int | None = None
-        self.pool_setpoint_f: int | None = None
-        self.spa_setpoint_f: int | None = None
+        self.water_setpoint_f: int | None = None
         self.target_temp_f: int | None = None
         self.salt_ppm: int | None = None
         self.swg_percent: int | None = None
@@ -46,6 +44,8 @@ class PoolState:
         self.filter_pump_on: bool = False
         self.jet_pump_on: bool = False
         self.heater_on: bool = False
+        self.pool_heater_on: bool = False
+        self.spa_heater_on: bool = False
         self.pool_light_on: bool = False
         self.spa_light_on: bool = False
         self.valve: str | None = None
@@ -86,7 +86,6 @@ class PoolState:
             self.screen_clr = True
 
             # If updated then clear the state and get a full update.
-            #what happens in ither screens????
             if(self.updated):
                 print("  Main screen update complete. PoolState updated.")
                 self.updated = False  # Reset the updated flag after snapshotting
@@ -144,6 +143,7 @@ class PoolState:
                 self.off_ctr = 0
                 self.bridge.got_main(True)
                 self.updated = True
+                self.heater_on = self.pool_heater_on  or self.spa_heater_on
             
             # Check if we are getting time updates only.
             # this indicates that the pool is off because there are no associated 
@@ -188,7 +188,6 @@ class PoolState:
 
         if "POOL LIGHT" in self.line_text:
             self.pool_light_on = True
-            print("PoolState: Pool Light is on.")
 
         if "SPA LIGHT" in self.line_text:
             self.spa_light_on = True
@@ -215,22 +214,19 @@ class PoolState:
         # Check if main menu shows spa heater on 
         #############TODO: SPA HEATER TURN OFF POOL HEATER WHEN it comes through
         if all(w in self.line_text for w in ["SPA HEATER", "ON"]):
-            self.heater_on = True
+            self.spa_heater_on = True
         elif all(w in self.line_text for w in ["SPA HEATER", "OFF"]):
-            self.heater_on = False
+            self.spa_heater_on = False
         elif all(w in self.line_text for w in ["SPA HEATER", "ENA"]):
-            self.heater_on = True   
+            self.spa_heater_on = True   
 
         # Check if main menu shows pool heater on 
         if all(w in self.line_text for w in ["POOL HEATER", "ON"]):
-            print("Pool HEATER ON")
-            self.heater_on = True
+            self.pool_heater_on = True
         elif all(w in self.line_text for w in ["POOL HEATER", "OFF"]):
-            print("Pool HEATER OFF")
-            self.heater_on = False
+            self.pool_heater_on = False
         elif all(w in self.line_text for w in ["POOL HEATER", "ENA"]):
-            print("Pool HEATER ENA")
-            self.heater_on = True   
+            self.pool_heater_on = True   
 
 
         # Parse temperature line on home screen (line 0x82) for Air and Water temps
@@ -251,8 +247,9 @@ class PoolState:
         if "POOL HEAT" in self.line_text and self.line_number == 0x00:
             print("Pool Heat Menu")
 
+        # Grab the current temp setpoint in the heater menu
         if "SET TO" in self.line_text and self.line_number == 0x03:
-            print("Pool Heat Menu")
+            print("Pool/SPA Heat Menu")
 
             # re.search looks for one or more digits followed by 'F'
             # 'SET TO 91FF' matches '91' in group 1
@@ -260,13 +257,9 @@ class PoolState:
             
             if match:
                 temp_value = int(match.group(1))
-                
-                # Check the context to see if it's the Pool or Spa setpoint context
-                # Usually line 3 represents a target temperature confirmation message.
-                print(f"Captured valid target setpoint update: {temp_value}°F")
-                
-                # Save the value to your state model
                 self.target_temp_f = temp_value
+                print(f"Captured valid target setpoint update: {temp_value}°F")
+                self.bridge.htr_setpoint(temp_value)
 
 
         if self.line_number == 0x40:
@@ -304,8 +297,7 @@ class PoolState:
             "mode": self.mode.value if hasattr(self.mode, 'value') else self.mode,
             "air_temp_f": self.air_temp_f,
             "water_temp_f": self.water_temp_f,
-            "pool_setpoint_f": self.pool_setpoint_f,
-            "spa_setpoint_f": self.spa_setpoint_f,
+            "water_setpoint_f": self.water_setpoint_f,
             "target_temp_f": self.target_temp_f,
             "salt_ppm": self.salt_ppm,
             "swg_percent": self.swg_percent,

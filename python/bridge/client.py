@@ -33,11 +33,10 @@ class CommandType(str, Enum):
     ALL_OFF = "all_off"
     PDA = "pda"
     POOL_FILTER = "pool_filter"
-    POOL_TEMP = "pool_temp"
+    TEMP_ASK = "temp_ask"
     POOL_HEATER = "pool_heater"
     POOL_LIGHTS = "pool_lights"
     SPA_ON = "spa_on"
-    SPA_TEMP = "spa_temp"
     SPA_HEATER = "spa_heater"
     SPA_LIGHTS = "spa_lights"
     POOL_FILTER_RPM = "filter_rpm"
@@ -77,12 +76,9 @@ class BridgeClient:
 
     def control_command(self, cmd: Command) -> None:
         print(f"client->control_command: {cmd.type}")
-        if(cmd.type == CommandType.SPA_TEMP ):
+        if(cmd.type == CommandType.TEMP_ASK ):
             temp = cmd.temp_f
-            Bridge.notify("set_spa_temp", temp)
-        elif(cmd.type  == CommandType.POOL_TEMP):
-            temp = cmd.temp_f
-            Bridge.notify("set_pool_temp", temp)
+            Bridge.notify("set_temp", temp)
         elif(cmd.type  == CommandType.POOL_FILTER_RPM):
             rpm = cmd.rpm
             Bridge.notify("set_filter_rpm", rpm)
@@ -95,6 +91,9 @@ class BridgeClient:
     def got_main(self, value: bool) -> None:
         print(f"client->set main: {value}")
         Bridge.notify("set_main_menu", value)
+
+    def htr_setpoint(self, value) -> None:
+        Bridge.notify("htr_setpoint", value)
 
     def toggle_spa(self, value: bool) -> None:
         Bridge.notify("set_spa_state", value)

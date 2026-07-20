@@ -80,19 +80,17 @@ const ListDefinition cmdList[] = {
         CMD_SPA_HEAT,
         {
             {5, 3, 4}, // Press DOWN 3 times For HEAT
-            {4, 2, 15}, // Press SELECT twice times select default heat
-            {2, 1, 10}  // Press BACK/MENU once to clear screen
+            {4, 1, 15}, // Press SELECT turn off heat (see special handle for on)
         },
-        3
+        2
     },
     {
         CMD_POOL_HEAT,
         {
             {5, 1, 4}, // Press DOWN 1 time For HEAT
-            {4, 2, 15}, // Press SELECT twice times select default heat
-            {2, 1, 10}  // Press BACK/MENU once to clear screen
+            {4, 1, 15}, // Press SELECT turn off heat (see special handle for on)
         },
-        3
+        2
     },
     {
         CMD_JETS,
@@ -138,7 +136,7 @@ public:
     ActionListManager(Stream& monitor);
     bool cmdRxed(Command name);
     bool pushNextButton(Stream& serial1, uint8_t line);
-
+    void setUpdate(int btn);
     // Helper to check if a macro sequence is actively running
     bool isBusy() const { 
         return (activeCmd); 

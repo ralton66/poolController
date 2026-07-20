@@ -70,8 +70,8 @@ class PoolController:
         print("PoolController: pool_heater called")
         self.enqueue(Command(command_type=CommandType.POOL_HEATER))
     
-    def pool_temp(self, temp_f: int) -> None:
-        self.enqueue(Command(command_type=CommandType.POOL_TEMP, temp_f=temp_f))
+    def temp_ask(self, temp_f: int) -> None:
+        self.enqueue(Command(command_type=CommandType.TEMP_ASK, temp_f=temp_f))
 
     def spa_on(self) -> None:
         print("PoolController: spa_on called")
@@ -80,9 +80,6 @@ class PoolController:
     def spa_heater(self) -> None:
         print("PoolController: spa_heater called")
         self.enqueue(Command(command_type=CommandType.SPA_HEATER))
-
-    def spa_temp(self, temp_f: int) -> None:
-        self.enqueue(Command(command_type=CommandType.SPA_TEMP, temp_f=temp_f))
 
     def jets(self) -> None:
         print("PoolController: jets called")

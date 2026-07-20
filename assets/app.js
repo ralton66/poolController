@@ -19,8 +19,7 @@ const els = {
     saltPpm: document.getElementById('salt-ppm'),
     filterRpm: document.getElementById('filter-rpm'),
     filterWatts: document.getElementById('filter-watts'),
-    spaTempInput: document.getElementById('spa-temp-input'),
-    poolTempInput: document.getElementById('pool-temp-input'),
+    tempInput: document.getElementById('temp-input'),
     filterRpmInput: document.getElementById('filter-rpm-input'),
     spaOnBtn: document.getElementById('spa-on-btn'),
     spaHeaterBtn: document.getElementById('spa-heater-btn'),
@@ -55,26 +54,15 @@ function bindControls() {
     els.jetsBtn.addEventListener('click', ()        => socket.emit('set_jets', {}));
     els.allOffBtn.addEventListener('click', ()      => socket.emit('all_off', {})); 
     els.pdaBtn.addEventListener('click', ()         => socket.emit('pda', {}));
-    
-    els.spaTempInput.addEventListener('change', (event) => {
-        const temp_f = parseInt(event.target.value, 10);
-        
-        // Safety constraint validation (standard spa max is typically 104°F)
-        if (!isNaN(temp_f) && temp_f >= 60 && temp_f <= 104) {
-            socket.emit('set_spa_temp', { temp_f });
-        } else {
-            console.error("Invalid spa temperature value.");
-        }
-    });
 
-    els.poolTempInput.addEventListener('change', (event) => {
+    els.tempInput.addEventListener('change', (event) => {
         const temp_f = parseInt(event.target.value, 10);
         
         // Safety constraint validation (standard pool max is typically 101°F)
-        if (!isNaN(temp_f) && temp_f >= 60 && temp_f <= 101) {
-            socket.emit('set_pool_temp', { temp_f });
+        if (!isNaN(temp_f) && temp_f >= 70 && temp_f <= 102) {
+            socket.emit('set_temp', { temp_f });
         } else {
-            console.error("Invalid pool temperature value.");
+            console.error("Invalid temperature value.");
         }
     });
 

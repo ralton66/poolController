@@ -16,6 +16,7 @@ int state = 0; // 0: Idle, 1: STX, 2: Data, 3: Escape/End
 int st = 0; // 0: Idle, 1: STX, 2: Data, 3: Escape/End
 int cmd_seq = 0; // control command sequencing based on master responses
 int delay_ctr = 0;
+int water_temp_target = 80;
 bool cmd_seq_delay = false;
 bool packetReady = false;
 bool pdaConnecting = false;
@@ -51,36 +52,28 @@ void set_main(bool s) {
     mainMenu = s;
 }
 
-void set_spa_temp(int temp) {
-    Monitor.print("Spa Temp: ");
-    Monitor.println(temp);
-    if(temp>= 0 && temp <= 85){
-        Monitor.println("Pool Temp: 0");
+void set_htr_setpoint(int setpoint){
+    int btn;
+
+    if(water_temp_target > setpoint){
+        btn = 0x06; //UP commands
     }
-    else if(temp>= 86 && temp <= 89){
-        Monitor.println("Pool Temp: 1");
+    else if(water_temp_target < setpoint){
+        btn = 0x05; //DOWN commands
+ 
     }
-    else if(temp>= 90){
-        Monitor.println("Pool Temp: 2");
-    }else
-        Monitor.println("Pool Temp: Unknown");
+    else{ // don't do anything just run a back command that has no effect
+        btn = 0x02; //DOWN commands
+    }
+
+    manager.setUpdate(btn);
 }
 
-void set_pool_temp(int temp) {
-    Monitor.print("Pool Temp: ");
-    Monitor.println(temp);
-    
-    if(temp>= 0 && temp <= 85){
-        Monitor.println("Pool Temp: 0");
-    }
-    else if(temp>= 86 && temp <= 89){
-        Monitor.println("Pool Temp: 1");
-    }
-    else if(temp>= 90){
-        Monitor.println("Pool Temp: 2");
-    }else{
-        Monitor.println("Pool Temp: Unknown");
-    }
+void set_temp(int temp) {
+
+    water_temp_target = temp;
+    Monitor.print("Temp ask: ");
+    Monitor.println(water_temp_target);
 }
 
 void set_filter_rpm(int rpm) {
@@ -145,7 +138,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 manager.pushNextButton(Serial1, highlighted_line);
                 bytesToHex(packetBuffer, pIdx, hexBuffer);
                 Bridge.notify("pda_packet", hexBuffer);  
-
+  
                 return;
             }
                 
@@ -237,9 +230,6 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
 }
 
 void processByte(uint8_t c) {
-    //Monitor.print(". ");
-    //Monitor.print(c, HEX);
-    //Monitor.print(". ");
 
     switch (state) {
         case 0: // Idle state, waiting for STX
@@ -401,9 +391,9 @@ void setup() {
     Bridge.begin();
     Bridge.provide("set_led_state", set_led_state);
     Bridge.provide("set_main_menu", set_main);
+    Bridge.provide("htr_setpoint", set_htr_setpoint);
     Bridge.provide("set_spa_state", set_spa_state);
-    Bridge.provide("set_spa_temp", set_spa_temp);
-    Bridge.provide("set_pool_temp", set_pool_temp);
+    Bridge.provide("set_temp", set_temp);
     Bridge.provide("set_filter_rpm", set_filter_rpm);
     Bridge.provide("set_pool_state", set_pool_state);
     Bridge.provide("RS485_send", rs485_tx);
