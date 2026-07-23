@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from model.pool_state import PoolMode, PoolState
-from model.commands import Command, CommandType, build_wire_frames
+from model.commands import Command, build_wire_frames
 from protocol.jandy_frame import decode_payload, encode_payload, hex_to_bytes
 from protocol.pda_messages import parse_packet
 

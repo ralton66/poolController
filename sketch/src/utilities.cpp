@@ -43,6 +43,20 @@ bool str_to_int(const char* text, int* result) {
     return false; // No parseable digits found
 }
 
+void processCommandMask(uint16_t rawMask) {
+    if (hasFlag(rawMask, CMD_POOL)) {
+        // Activate Filter Pump Relay
+    }
+    
+    if (hasFlag(rawMask, CMD_POOL_HEAT)) {
+        // Arm Heater Relay
+    }
+
+    if (hasFlag(rawMask, CMD_ALL_OFF)) {
+        // Emergency stop: Disengage all relays
+    }
+}
+
 bool validateChecksum(const uint8_t* buf, size_t len) {
     if (len < 2)
       return false;
@@ -110,14 +124,9 @@ void printPacketRsp(Stream& monitor, const uint8_t* buf, size_t len) {
   monitor.print("] RX: ");
 
   for (size_t i = 2; i < (len-2); i++) {
-
-    // Print a leading zero if the byte is less than 16 (0x10)
-    if (buf[i] < 16) {
+    if (buf[i] < 16)
       monitor.print("0");
-    }
-    
     monitor.print(buf[i], HEX);
-    
   }
   monitor.println(); // Final newline
 }
@@ -166,4 +175,50 @@ void parseJandyDisplayPacket(Stream& monitor, const unsigned char *packet, size_
     monitor.print(F(" | "));
     monitor.print(asciiString);
     monitor.println();
+}
+
+
+void PDAEmulator::executeCommand(uint16_t mask, int extraVal) {
+    if (mask == CMD_UNKNOWN) return;
+
+    // Handle RESET bit
+    if (mask & CMD_RESET) {
+        // Handle board reset routine
+        return;
+    }
+
+    // Handle ALL OFF bit first if set
+    if (mask & CMD_ALL_OFF) {
+        // Turn off filter pump, spa, heaters, lights
+        return;
+    }
+
+    // Check individual command bits (Multiple bits can execute in one call)
+    if (mask & CMD_POOL) {
+        // Toggle/Enable Pool Filter Pump
+    }
+
+    if (mask & CMD_POOL_HEAT) {
+        // Enable Pool Heater
+    }
+
+    if (mask & CMD_SPA) {
+        // Toggle Spa Valves / Actuators
+    }
+
+    if (mask & CMD_SPA_HEAT) {
+        // Set Spa Setpoint / Enable Spa Heater
+    }
+
+    if (mask & CMD_PUMP_SPEED) {
+        // Apply RPM speed passed in extraVal
+    }
+
+    if (mask & CMD_POOL_LIGHTS) {
+        // Toggle Pool Lights
+    }
+
+    if (mask & CMD_SPA_LIGHT) {
+        // Toggle Spa Lights
+    }
 }

@@ -6,16 +6,18 @@
 from __future__ import annotations
 
 import time
+import logging
 import cmd
 import threading
 from typing import Callable
 from enum import Enum
-from bridge.client import BridgeClient, Command, CommandType
+from bridge.client import BridgeClient, Command
 from model.pool_state import PoolState
 from protocol.jandy_frame import decode_payload, encode_wire, hex_to_bytes
 from protocol.pda_messages import parse_packet
 from services.controller import PoolController
 from model.commands import ControlState, StateMachine
+logger = logging.getLogger(__name__)
 
 UPDATE_SECONDS = 10
 
@@ -37,7 +39,7 @@ class PoolMonitor:
 
     def handle_hex_payload(self, hex_payload: str) -> None:
         try:
-            #self.bridge.log_rx_payload(hex_payload)
+            self.bridge.log_rx_payload(hex_payload)
             frame = decode_payload(hex_to_bytes(hex_payload))
             parsed = parse_packet(frame)
                 
@@ -49,7 +51,7 @@ class PoolMonitor:
                 self._notify()
 
         except Exception as e:
-            print("WTF")
+            logger.error(f"exception: {e}")
             with self._lock:
                 self.state.last_error = str(e)
                 self.state.last_packet = {"error": str(e), "hex": hex_payload}
@@ -61,8 +63,14 @@ class PoolMonitor:
 
     def _notify(self) -> None:
         self.connection_ok = True
-
         update_threshold = UPDATE_SECONDS if 'UPDATE_SECONDS' in globals() else 10
+        
+        # _on_update is a callback in main.on_state_updated
+        # this triggers a call to monitor.get_snapshot and 
+        # cloud_sync.on_state_changed
+        ## TODO maybe this call stack can be shortened by just callin state.todict here
+        ## and cloud_sync....this is the catch for now.
+
         if time.time() - self.last_update > update_threshold:
             self.last_update = time.time()
             if self._on_update:

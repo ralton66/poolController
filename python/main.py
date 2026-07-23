@@ -4,6 +4,7 @@
 
 import os
 import sys
+import logging
 from pathlib import Path
 from arduino.app_utils import App, Bridge
 
@@ -30,6 +31,31 @@ PKT_PDA_SELECT = bytes([
     0x10, 0x02, 0x00, 0x01, 0x50, 0x04, 0x67, 0x10, 0x03
 ])
 
+def setup_logging():
+    # Configure the root logger (or a top-level named logger)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Formatters
+    console_formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+    file_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # Console Handler
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(console_formatter)
+    root_logger.addHandler(ch)
+
+    # File Handler
+    #fh = logging.FileHandler("/var/log/pool_controller.log")
+    #fh.setLevel(logging.DEBUG)
+    #fh.setFormatter(file_formatter)
+    #root_logger.addHandler(fh)
+
+#logger.debug("Raw RX: 60040148454C5020202020202020202020203E3E") # Only goes to file
+#logger.info("State shifted: HELP_PROMPT")                      # Goes to console + file
+#logger.error("Checksum mismatch on packet!")                     # Goes to console + file
+
 bridge = get_client()
 pool_state = PoolState(bridge)
 ui = WebUI()
@@ -52,23 +78,23 @@ def on_pda_packet(hex_payload: str):
     monitor.handle_hex_payload(hex_payload)
 
 def on_get_state(client, data):
-    print("State Update")
+    logger.info("State Update")
     ui.send_message("state_update", monitor.get_snapshot(), client)
 
 def on_get_initial_state(client, data):
     on_get_state(client, data)
     if TEST_LED:
-        print("led_status_update")
+        logger.info("led_status_update")
 
 def on_set_filter(client, data): 
-    print("main: on_set_filter")
+    logger.info("main: on_set_filter")
     controller.pool_filter()
 
 def on_set_pool_heater(client, data):
     controller.pool_heater()
 
 def on_set_temp(client, data): 
-    print("main: on_set_temp ")
+    logger.info("main: on_set_temp ")
     try:
         temp_f = int(data.get("temp_f", 89)) if isinstance(data, dict) else 89
     except (TypeError, ValueError):
@@ -99,6 +125,9 @@ def on_set_spa_lights(client, data):
 
 def on_set_jets(client, data):
     controller.jets()
+
+def on_set_pump_spd(client, dat):
+    controller.set_pump_spd()
 
 def on_all_off(client, data):
     controller.all_off()
@@ -163,9 +192,14 @@ ui.on_message("set_temp", on_set_temp)
 ui.on_message("set_spa_heater", on_set_spa_heater)
 ui.on_message("set_spa_lights", on_set_spa_lights)
 ui.on_message("set_jets", on_set_jets)
+ui.on_message("set_pump_spd", on_set_pump_spd)
 ui.on_message("all_off", on_all_off)
 ui.on_message("pda", on_pda)
 ui.on_message("reset", on_reset)
+
+setup_logging()   
+logger = logging.getLogger(__name__)
+logger.info("Pool Controller Daemon Started")
 
 if TEST_LED:
     ui.on_message("toggle_led", toggle_led_state)

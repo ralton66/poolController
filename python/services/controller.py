@@ -6,13 +6,15 @@
 from __future__ import annotations
 
 import queue
+import logging
 import threading
 import time
 from typing import Callable
-from bridge.client import BridgeClient, Command, CommandType
+from bridge.client import BridgeClient, Command
 from model.pool_state import PoolMode, PoolState
 
 FRAME_GAP_S = 1
+logger = logging.getLogger(__name__)
 
 class ControlPackets:
     """Steady-State Operational Ready Packets (Answering normal runtime loops)"""
@@ -55,55 +57,60 @@ class PoolController:
         self._running = False
         self._queue.put(None)
 
-    def enqueue(self, cmd: Command) -> None:
+    def enqueue(self, cmd: Command, rpm: Optional[int] = None, temp_f: Optional[int] = None) -> None:
+    #def enqueue(self, cmd: Command) -> None:
         self._queue.put(cmd)
 
     def pool_filter(self) -> None:
-        print("PoolController: pool_filter called")
-        self.enqueue(Command(command_type=CommandType.POOL_FILTER))
+        logger.info("PoolController: pool_filter called")
+        self.enqueue(Command.POOL_FILTER)
 
     def pool_filter_rpm(self, rpm: int | None = None) -> None:
-        print("PoolController: pool_filter called")
-        self.enqueue(Command(command_type=CommandType.POOL_FILTER_RPM, rpm=rpm))
+        logger.info("PoolController: pool_filter called")
+        self.enqueue(Command.POOL_FILTER_RPM, rpm=rpm)
     
     def pool_heater(self) -> None:
-        print("PoolController: pool_heater called")
-        self.enqueue(Command(command_type=CommandType.POOL_HEATER))
+        logger.info("PoolController: pool_heater called")
+        self.enqueue(Command.POOL_HEATER)
     
     def temp_ask(self, temp_f: int) -> None:
-        self.enqueue(Command(command_type=CommandType.TEMP_ASK, temp_f=temp_f))
+        self.enqueue(Command.TEMP_ASK, temp_f=temp_f)
 
     def spa_on(self) -> None:
-        print("PoolController: spa_on called")
-        self.enqueue(Command(command_type=CommandType.SPA_ON))
+        logger.info("PoolController: spa_on called")
+        self.enqueue(Command.SPA_ON)
 
     def spa_heater(self) -> None:
-        print("PoolController: spa_heater called")
-        self.enqueue(Command(command_type=CommandType.SPA_HEATER))
+        logger.info("PoolController: spa_heater called")
+        self.enqueue(Command.SPA_HEATER)
 
     def jets(self) -> None:
-        print("PoolController: jets called")
-        self.enqueue(Command(command_type=CommandType.JETS))
+        logger.info("PoolController: jets called")
+        self.enqueue(Command.JETS)
+
+    def set_pump_spd(self) -> None:
+        logger.info("PoolController: set pump speed called")
+        self.enqueue(Command.PUMP_SPEED)
 
     def all_off(self) -> None:
-        print("PoolController: all_off called")
-        self.enqueue(Command(command_type=CommandType.ALL_OFF))
+        logger.info("PoolController: all_off called")
+        self.enqueue(Command.ALL_OFF)
     
     def pda(self) -> None:
-        print("PoolController: PDA called")
-        self.enqueue(Command(command_type=CommandType.PDA))
+        logger.info("PoolController: PDA called")
+        self.enqueue(Command.PDA)
 
     def set_pool_lights(self) -> None:
-        print("PoolController: set_pool_lights called")
-        self.enqueue( Command(command_type=CommandType.POOL_LIGHTS))
+        logger.info("PoolController: set_pool_lights called")
+        self.enqueue(Command.POOL_LIGHTS)
 
     def set_spa_lights(self) -> None:
-        print("PoolController: set_spa_lights called")
-        self.enqueue( Command(command_type=CommandType.SPA_LIGHTS))
+        logger.info("PoolController: set_spa_lights called")
+        self.enqueue(Command.SPA_LIGHTS)
 
     def reset(self) -> None:
-        print("PoolController: reset called")
-        #self.enqueue(Command(type=CommandType.RESET))
+        logger.info("PoolController: reset called")
+        #self.enqueue(Command.RESET)
 
     def _worker(self) -> None:
         while self._running:
@@ -116,11 +123,11 @@ class PoolController:
             if cmd is None:
                 break
             self._execute(cmd)
-            if self.state and self.state.undefined_state and cmd.type != CommandType.RESET:
-                self.enqueue(Command(type=CommandType.RESET))
+            if self.state and self.state.undefined_state and Command.RESET not in cmd:
+                self.enqueue(Command.RESET)
 
     def _execute(self, cmd: Command) -> None:
-        print("controller: _execute (command type:)", cmd.type)
+        logger.info(f"controller: _execute (command type:) {cmd.name} (0x{int(cmd):04X})")
         self.bridge.control_command(cmd)
 
 

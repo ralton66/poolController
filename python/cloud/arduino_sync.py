@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Callable
-from bridge.client import BridgeClient, Command, CommandType
+from bridge.client import BridgeClient, Command
 from model.pool_state import PoolMode, PoolState
 
 
@@ -75,8 +75,16 @@ class CloudSync:
             if v == "spa":
                 t = self.state.spa_setpoint_f or 102
                 self.controller.enqueue(
-                    Command(type=CommandType.SPA_ON, temp_f=t)
+                    Command.SPA_ON
                 )
+            #  TODO  maybe
+            # 1. Reference Command.SPA_ON directly (no CommandType)
+            # 2. Optionally combine SPA_ON and SPA_HEATER into a single batched bitmask
+            #    self.controller.enqueue(
+            #    Command.SPA_ON | Command.SPA_HEATER, 
+            #    temp_f=t
+            #)
+
             elif v == "pool":
                 self.controller.pool_filter()
             else:
@@ -89,9 +97,7 @@ class CloudSync:
             #    temp_setpoint_f = int(value)
             #except (TypeError, ValueError):
             #    return
-            #self.controller.enqueue(
-            #    Command(type=CommandType.SPA_ON, temp_f=temp_f)
-            #)
+            #self.controller.enqueue(Command.SPA_ON, temp_f=temp_f)
 
         def lights_write(_client, value):
             on = value in (True, 1, "1", "true", "on")

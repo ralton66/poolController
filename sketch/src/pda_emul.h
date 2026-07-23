@@ -104,6 +104,16 @@ const ListDefinition cmdList[] = {
         5
     },
     {
+        CMD_PUMP_SPEED,
+        {
+            {5, 5, 4}, // Press DOWN five times
+            {4, 1, 15}, // Press SELECT once
+            {5, 2, 4}, // Press DOWN 2 times
+            {4, 1, 5}, // Press SELECT 1 t0 enter VSP ADJ
+        },
+        4
+    },
+    {
         CMD_ALL_OFF,
         {
             {5, 5, 4}, // Press DOWN five times
@@ -127,6 +137,7 @@ private:
     bool cmd_seq_delay;
     uint8_t delay_ctr;
     uint8_t delay_cycles;
+    uint8_t pumpSpdSelect;
     bool poolLights;
     bool spaLights;
     bool poolHeat;
@@ -135,8 +146,11 @@ private:
 public:
     ActionListManager(Stream& monitor);
     bool cmdRxed(Command name);
+    bool cmdRxed(uint16_t cmdMask);
     bool pushNextButton(Stream& serial1, uint8_t line);
-    void setUpdate(int btn);
+    void tempBtnDir(int btn);
+    void pumpSpdLine(int line);
+
     // Helper to check if a macro sequence is actively running
     bool isBusy() const { 
         return (activeCmd); 

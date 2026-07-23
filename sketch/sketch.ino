@@ -55,18 +55,14 @@ void set_main(bool s) {
 void set_htr_setpoint(int setpoint){
     int btn;
 
-    if(water_temp_target > setpoint){
+    if(water_temp_target > setpoint)
         btn = 0x06; //UP commands
-    }
-    else if(water_temp_target < setpoint){
+    else if(water_temp_target < setpoint)
         btn = 0x05; //DOWN commands
- 
-    }
-    else{ // don't do anything just run a back command that has no effect
+    else// don't do anything just run a back command that has no effect
         btn = 0x02; //DOWN commands
-    }
 
-    manager.setUpdate(btn);
+    manager.tempBtnDir(btn);
 }
 
 void set_temp(int temp) {
@@ -79,17 +75,21 @@ void set_temp(int temp) {
 void set_filter_rpm(int rpm) {
     Monitor.print("Pump RPM: ");
     Monitor.println(rpm);
-    if(rpm>= 0 && rpm <= 2000){
-        Monitor.println("Pool line 1");
-    }else if (rpm>= 2001 && rpm <= 2300){
-        Monitor.println("cleaner line 4");
-    }else if(rpm>= 2301 && rpm <= 2999){
-        Monitor.println("spa line 2");
-    }else if(rpm>= 3000){
-        Monitor.println("High spd line 3");
-    }else{
-        Monitor.println("speed7 line 7");
-    }
+    // Function by picking a preset from the VSP adjust menu 
+    // line 1 - POOL 1800
+    // line 2 - SPA    2750
+    // line 3 - HIGH SPEED  3450
+    // line 4 - CLEANER 2200
+    if(rpm>= 0 && rpm <= 2000)
+        manager.pumpSpdLine(1);
+    else if (rpm>= 2001 && rpm <= 2300)
+        manager.pumpSpdLine(4);
+    else if(rpm>= 2301 && rpm <= 2999)
+        manager.pumpSpdLine(2);
+    else if(rpm>= 3000)
+        manager.pumpSpdLine(3);
+    else
+        manager.pumpSpdLine(1);
 }
 
 void set_spa_state(bool s) {  
@@ -119,7 +119,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
         return; 
     }
     
-    if(control_command == CMD_PDA) { 
+    if(control_command & CMD_PDA) { 
         printPacketBuffer(Monitor, raw_bytes, length);
         return;
     
@@ -309,7 +309,73 @@ void rs485_tx(String hex) {
     Monitor.println(hex);
 }
 
-void control_input(String cmdStr){
+
+void control_input(int cmdMask) {
+    Monitor.print("Control Input Mask: 0x");
+    Monitor.println(cmdMask, HEX);
+
+    // If command is received while processing then ignore input
+    if (control_command == CMD_UNKNOWN) {
+
+        // --- OPTION 1 REFACTOR ---
+        // Direct assignment! No string matching required.
+        control_command = static_cast<Command>(cmdMask);
+
+        manager.cmdRxed(control_command);
+
+        // Bitwise test for CMD_PDA flag
+        if (!(control_command & CMD_PDA)) {
+            control_command = CMD_UNKNOWN;
+        } else if (!pdaSynced) {
+            pdaSynced = false; // need to set this to true to enable fast dump
+        }
+
+    } else if (control_command & CMD_PDA) {
+
+        if (bidx > 0) {
+            st = 0;
+            uint8_t c;
+            Monitor.print("Buffer Data: ");
+            for (int i = 0; i < bidx; i++) {
+                c = pbuff[i];
+
+                // Print a leading zero if the byte is less than 16 (0x10)
+                if (pbuff[i] < 16) 
+                    Monitor.print("0");
+                Monitor.print(pbuff[i], HEX);
+
+                switch (st) {
+                    case 0: // Idle state, waiting for STX
+                        if (c == 0x10) st = 1;
+                        break;
+                    case 1: // Received STX, expecting start of packet
+                        if (c == 0x02) st = 2;
+                        else st = 0;
+                        break;
+                    case 2: // Reading packet data, looking for ETX or escape
+                        if (c == 0x10) st = 3;
+                        break;
+                    case 3: // After escape character, determine if end of packet
+                        if (c == 0x03) {
+                            Monitor.println(" ");
+                            st = 0;
+                        } else st = 2;
+                        break;
+                }
+            }
+            Monitor.println();
+            pdaSynced = false;
+            bidx = 0;
+        }
+        control_command = CMD_UNKNOWN;
+
+    } else {
+        Monitor.println("Control Input ignored. Still processing last input");
+    }
+}
+
+
+void control_input_OLD(String cmdStr){
 
     Monitor.print("Control Input: ");
     Monitor.println(control_command);
@@ -327,6 +393,7 @@ void control_input(String cmdStr){
         if (cmdStr == "spa_lights")  control_command = CMD_SPA_LIGHT;
         if (cmdStr == "pool_heater") control_command = CMD_POOL_HEAT;
         if (cmdStr == "spa_heater")  control_command = CMD_SPA_HEAT;
+        if (cmdStr == "pump_speed")  control_command = CMD_PUMP_SPEED;
         if (cmdStr == "jets")        control_command = CMD_JETS;
 
         manager.cmdRxed(control_command);

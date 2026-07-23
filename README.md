@@ -2,10 +2,19 @@
 ToDo
 
 Add button to turn on AUX Pump.  May want to change the controlinterface on the pump itself so it just comes on when enabled.
-Add capability to set temps and rpm
-
-
+Add capability to set rpm
 Add other menus for rest off the pda tree - salt levels, boost, freeze protect, programs...
+
+
+
+#Pool Equipment
+Jandy Aquapure PLC1400
+Filter S8M150
+Jandy ePump JEP2.0
+Hayward Heater
+Valves
+
+
 
 
 VSP1 SPD ADJ is line 3
@@ -67,3 +76,118 @@ arduino-app-cli app start poolController
 [main] -----------------------------------------------
 [ma
 
+
+
+
+Method 2: Binding a Specific List of Button Elements
+If you don't want to modify your HTML markup and prefer keeping button references inside an object (like your els object), you can loop over an array or map of chosen elements:
+
+
+
+function bindControls() {
+    // Map your chosen button elements to their command string
+    const controlButtons = [
+        { element: els.jetsBtn,      command: 'JETS' },
+        { element: els.spaBtn,       command: 'SPA' },
+        { element: els.poolLightBtn, command: 'POOL_LIGHT' },
+        { element: els.heaterBtn,    command: 'HEATER' }
+    ];
+
+    // Attach the shared event emitter to each chosen element
+    controlButtons.forEach(({ element, command }) => {
+        if (element) {
+            element.addEventListener('click', () => {
+                socket.emit('control_cmd', { command: command });
+            });
+        }
+    });
+}
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Register a single handler for 'control_cmd'
+@ui.on_message('control_cmd')  # Or socketio.on('control_cmd') depending on your framework
+def handle_control_command(data):
+    # 'data' will be a dict like {'command': 'SPA'}
+    cmd_name = data.get('command')
+    logger.info(f"[Bridge] Unified button callback triggered: {cmd_name}")
+
+    # Pass the command string directly into your ActionListManager / PdaController logic!
+    if cmd_name:
+        action_manager.cmdRxed(cmd_name) # Or manager.StartSequence(cmd_name)
+
+
+Benefits of this Pattern:
+Zero Boilerplate: Adding a new button in the future only requires adding a data-command="AUX1" tag in HTML. No extra JavaScript socket emitters or Python socket handlers are needed!
+
+Direct Enum Compatibility: The command string sent over the socket (e.g., 'SPA') directly matches your cmdRxed() / StartSequence() method parameters in Python.
+
+
+
+from enum import IntFlag, auto
+
+class Command(IntFlag):
+    CMD_UNKNOWN     =
+
+
+
+
+    from enum import IntFlag
+
+class Command(IntFlag):
+    CMD_UNKNOWN     = 0
+    CMD_POOL        = 1 << 0
+    CMD_POOL_HEAT   = 1 << 1
+    CMD_POOL_LIGHTS = 1 << 2
+    CMD_SPA         = 1 << 3
+    CMD_SPA_HEAT    = 1 << 4
+    CMD_SPA_LIGHT   = 1 << 5
+    CMD_JETS        = 1 << 6
+    CMD_PUMP_SPEED  = 1 << 7
+    CMD_ALL_OFF     = 1 << 8
+    CMD_PDA         = 1 << 9
+    CMD_INSEQ       = 1 << 10
+
+# Sending batched commands from Python:
+# Command.CMD_SPA | Command.CMD_SPA_HEAT -> Sends integer 24 (0x0018) across the socket
+
+
+from enum import IntFlag
+
+class Command(IntFlag):
+    # Override __new__ to unpack (bitmask_value, string_identifier)
+    def __new__(cls, value: int, string_code: str = ""):
+        obj = int.__new__(cls, value)
+        obj._value_ = value
+        obj.string_code = string_code
+        return obj
+
+    # Bitmask Definition         # String Identifier (from CommandType)
+    UNKNOWN        = 0,          "unknown"
+    POOL           = 1 << 0,     "pool_filter"
+    POOL_HEAT      = 1 << 1,     "pool_heater"
+    POOL_LIGHTS    = 1 << 2,     "pool_lights"
+    SPA            = 1 << 3,     "spa_on"
+    SPA_HEAT       = 1 << 4,     "spa_heater"
+    SPA_LIGHTS     = 1 << 5,     "spa_lights"
+    JETS           = 1 << 6,     "jets"
+    PUMP_SPEED     = 1 << 7,     "pump_speed"
+    ALL_OFF        = 1 << 8,     "all_off"
+    PDA            = 1 << 9,     "pda"
+    INSEQ          = 1 << 10,    "inseq"
+    
+    # Non-hardware action commands (assigned high bitmask positions)
+    RESET          = 1 << 11,    "reset"
+    STATUS_POLL    = 1 << 12,    "status_poll"
+
+    @classmethod
+    def from_string(cls, str_code: str) -> "Command":
+        """Factory method: Look up enum member from Web/API string name."""
+        str_lower = str_code.lower()
+        for member in cls:
+            if member.string_code == str_lower:
+                return member
+        return cls.UNKNOWN

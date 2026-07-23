@@ -36,11 +36,120 @@ ActionListManager::ActionListManager(Stream& mon) : monitor(mon) {
     cmd_seq_delay = false;
     delay_ctr = 0;
     delay_cycles = 5;
+    pumpSpdSelect = 1;
     poolLights = false;
     spaLights = false;
     poolHeat = false;
     spaHeat = false;
 }
+
+bool ActionListManager::cmdRxed(uint16_t cmdMask) {
+    monitor.print("ActionListManager::cmdRxed (Mask): 0x");
+    monitor.println(cmdMask, HEX);
+
+    if (cmdMask == CMD_UNKNOWN) return false;
+
+    bool handledAny = false;
+
+    for (uint8_t i = 0; i < sizeof(cmdList) / sizeof(cmdList[0]); i++) {
+        
+        // Check if this command's bit flag is set in the incoming mask
+        if (cmdList[i].name != CMD_UNKNOWN && (cmdMask & cmdList[i].name)) {
+            
+            monitor.println(' ');
+            monitor.print("Matched Command Bit: 0x");
+            monitor.print(cmdList[i].name, HEX);
+            monitor.print(" index: ");
+            monitor.println(i);
+            
+            // Handle PDA status flag
+            if (cmdList[i].name == CMD_PDA) {
+                monitor.println("CMD_PDA received.");
+                if (cmdMask == CMD_PDA) return false; // Return false if PDA was the sole flag
+                continue;
+            }
+
+            // Track starting action index for this specific command entry
+            uint8_t baseActionIdx = list.count; // Or index tracking total added actions
+
+            // Add actions to the queue
+            for (uint8_t j = 0; j < cmdList[i].count; j++) {
+                list.AddAction(
+                    cmdList[i].actions[j].btnId, 
+                    cmdList[i].actions[j].num_pushes, 
+                    cmdList[i].actions[j].delay_cycles
+                );
+                
+                uint8_t currentIdx = baseActionIdx + j;
+                monitor.print(list.actions[currentIdx].btnId);
+                monitor.print(',');
+                monitor.println(list.actions[currentIdx].num_pushes);
+            }
+                
+            // Handle Pool Lights toggle
+            if (cmdList[i].name == CMD_POOL_LIGHTS) {
+                uint8_t selectIdx = baseActionIdx + 3; // Index of select push for this command
+                monitor.print("PL: ");
+                monitor.println(poolLights);
+
+                if (poolLights) {
+                    list.actions[selectIdx].num_pushes = 1; // select only once if on->off
+                    poolLights = false;
+                } else {
+                    list.actions[selectIdx].num_pushes = 2; // select twice if off->on
+                    poolLights = true;
+                }
+                monitor.print(list.actions[selectIdx].btnId);
+                monitor.print(',');
+                monitor.println(list.actions[selectIdx].num_pushes);
+            }   
+
+            // Handle Spa Lights toggle
+            if (cmdList[i].name == CMD_SPA_LIGHT) {
+                uint8_t selectIdx = baseActionIdx + 3; // Index of select push for this command
+                monitor.print("SL: ");
+                monitor.println(spaLights);
+
+                if (spaLights) {
+                    list.actions[selectIdx].num_pushes = 1; // select only once if on->off
+                    spaLights = false;
+                } else {
+                    list.actions[selectIdx].num_pushes = 2; // select twice if off->on
+                    spaLights = true;
+                }
+                monitor.print(list.actions[selectIdx].btnId);
+                monitor.print(',');
+                monitor.println(list.actions[selectIdx].num_pushes);
+            }
+
+            // Handle Pool Heater toggle
+            if (cmdList[i].name == CMD_POOL_HEAT) 
+                poolHeat = !poolHeat;
+
+            if (cmdList[i].name == CMD_SPA_HEAT) 
+                spaHeat = !spaHeat;
+
+                
+            if (cmdList[i].name == CMD_PUMP_SPEED) {
+                if (pumpSpdSelect > 0) {
+                    list.AddAction(5, pumpSpdSelect, 5); // press down
+                }
+                list.AddAction(4, 5, 5); // press select
+            }
+
+            handledAny = true;
+        }
+    }
+
+    if (handledAny) {
+        activeCmd = true;
+        return true;
+    }
+
+    return false;
+}
+
+
 
 bool ActionListManager::cmdRxed(Command name){
     monitor.print("ActionListManager::cmdRxed: ");
@@ -115,6 +224,12 @@ bool ActionListManager::cmdRxed(Command name){
                     spaHeat = false;
                 else
                     spaHeat = true;
+            }
+
+            if (name == CMD_PUMP_SPEED){
+                if(pumpSpdSelect>0)
+                    list.AddAction(5, pumpSpdSelect, 5); //press down
+                list.AddAction(4, 5, 5); // press select
             }
 
             activeCmd = true;
@@ -193,10 +308,14 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     return true;
 }
 
-void ActionListManager::setUpdate(int btn){
+void ActionListManager::tempBtnDir(int btn){
 
     list.ResetAction();      
     list.AddAction(btn, 1, 5);
     list.AddAction(4, 1, 5); // press select
     currActionIndex = 0;
+}
+
+void ActionListManager::pumpSpdLine(int line){
+    pumpSpdSelect = line - 1;
 }

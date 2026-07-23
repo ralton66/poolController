@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import os
+import logging
+from enum import IntFlag
 from datetime import datetime, timezone
 from pathlib import Path
-
 from dataclasses import dataclass
 from enum import Enum
 
@@ -22,39 +23,46 @@ from protocol.jandy_frame import bytes_to_hex, decode_payload, encode_wire, hex_
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_LOG = _REPO_ROOT / "protocol.log"
 
-
+logger = logging.getLogger(__name__)
 
 # Panel / AllButton destination used in bench fixtures
 DEST_PANEL = 0x00
 CMD_STATUS = 0x04
 
+class Command(IntFlag):
+    # Override __new__ to unpack (bitmask_value, string_identifier)
+    def __new__(cls, value: int, string_code: str = ""):
+        obj = int.__new__(cls, value)
+        obj._value_ = value
+        obj.string_code = string_code
+        return obj
 
-class CommandType(str, Enum):
-    ALL_OFF = "all_off"
-    PDA = "pda"
-    POOL_FILTER = "pool_filter"
-    TEMP_ASK = "temp_ask"
-    POOL_HEATER = "pool_heater"
-    POOL_LIGHTS = "pool_lights"
-    SPA_ON = "spa_on"
-    SPA_HEATER = "spa_heater"
-    SPA_LIGHTS = "spa_lights"
-    POOL_FILTER_RPM = "filter_rpm"
-    JETS = "jets"
-    RESET = "reset"
-    STATUS_POLL = "status_poll"
+    # Bitmask Definition         # String Identifier (from CommandType)
+    UNKNOWN        = 0,          "unknown"
+    POOL           = 1 << 0,     "pool_filter"
+    POOL_HEAT      = 1 << 1,     "pool_heater"
+    POOL_LIGHTS    = 1 << 2,     "pool_lights"
+    SPA            = 1 << 3,     "spa_on"
+    SPA_HEAT       = 1 << 4,     "spa_heater"
+    SPA_LIGHTS     = 1 << 5,     "spa_lights"
+    JETS           = 1 << 6,     "jets"
+    PUMP_SPEED     = 1 << 7,     "pump_speed"
+    ALL_OFF        = 1 << 8,     "all_off"
+    PDA            = 1 << 9,     "pda"
+    INSEQ          = 1 << 10,    "inseq"
+    TEMP_ASK       = 1 << 11,    "temp_ask"
+    POOL_FILTER_RPM= 1 << 12,    "set_filter_rpm"
+    RESET          = 1 << 13,    "reset"
+    STATUS_POLL    = 1 << 14,    "status_poll"
 
-
-class Command:
-    def __init__(self, command_type, rpm: int = None, temp_f: int = None):
-        self.type = command_type
-        self.rpm = rpm
-        self.temp_f = temp_f
-        
-
-    def __repr__(self):
-        return f"Command(type={self.type}, rpm={self.rpm}, temp_f={self.temp_f})"
-
+    @classmethod
+    def from_string(cls, str_code: str) -> "Command":
+        """Factory method: Look up enum member from Web/API string name."""
+        str_lower = str_code.lower()
+        for member in cls:
+            if member.string_code == str_lower:
+                return member
+        return cls.UNKNOWN
 
 class BridgeClient:
     def __init__(self, log_path: Path | None = None):
@@ -74,22 +82,28 @@ class BridgeClient:
         Bridge.notify("RS485_send", hex_wire)
         return hex_wire
 
-    def control_command(self, cmd: Command) -> None:
-        print(f"client->control_command: {cmd.type}")
-        if(cmd.type == CommandType.TEMP_ASK ):
-            temp = cmd.temp_f
-            Bridge.notify("set_temp", temp)
-        elif(cmd.type  == CommandType.POOL_FILTER_RPM):
-            rpm = cmd.rpm
-            Bridge.notify("set_filter_rpm", rpm)
-        else:
-            Bridge.notify("control_cmd", cmd.type)
+
+    def control_command(
+        self, 
+        cmd: Command, 
+        temp_f: Optional[int] = None, 
+        rpm: Optional[int] = None
+    ) -> None:
         
+        logger.debug(f"client->control_command: {cmd.name} (0x{int(cmd):04X})")
+
+        if Command.TEMP_ASK in cmd:
+            Bridge.notify("set_temp", temp_f or 0)
+        elif Command.POOL_FILTER_RPM in cmd:
+            Bridge.notify("set_filter_rpm", rpm or 0)
+        else:
+            Bridge.notify("control_cmd", int(cmd))
+
     def toggle_led(self, value: bool) -> None:
         Bridge.notify("set_led_state", value)
 
     def got_main(self, value: bool) -> None:
-        print(f"client->set main: {value}")
+        logger.debug(f"client->set main: {value}")
         Bridge.notify("set_main_menu", value)
 
     def htr_setpoint(self, value) -> None:
@@ -103,26 +117,12 @@ class BridgeClient:
 
     def log_rx_payload(self, hex_payload: str) -> None:
         csv_line = pda_parse(hex_payload)
-        #if hex_payload[:4] in {"0012", "001F", "0020"}:
-        #    print("???")
-        #elif hex_payload[:2] in {"60", "00"}:
-        #    self._log("RX", hex_payload)
-        #else if(hex_payload[:2] == "00"):
-        self._log("RX", csv_line)
+        logger.debug(f"RX: {csv_line}")
 
     @staticmethod
     def decode_rx_hex(hex_payload: str):
         payload = hex_to_bytes(hex_payload)
         return decode_payload(payload)
-
-    def _log(self, direction: str, hex_data: str) -> None:
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        line = f"{ts} {hex_data}\n"
-        try:
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(line)
-        except OSError:
-            pass
 
 
 _client: BridgeClient | None = None

@@ -12,19 +12,42 @@
 #define RE 2
 #define MAX_PKT 256
 
-enum Command {
-    CMD_UNKNOWN,
-    CMD_POOL,
-    CMD_POOL_HEAT,
-    CMD_POOL_LIGHTS,
-    CMD_SPA,
-    CMD_SPA_HEAT,
-    CMD_SPA_LIGHT,
-    CMD_JETS,
-    CMD_ALL_OFF,
-    CMD_PDA,
-    CMD_INSEQ
+enum Command : uint16_t {
+    CMD_UNKNOWN     = 0,          // 0x0000 - No bits set
+    CMD_POOL        = (1 << 0),   // 0x0001 (1)
+    CMD_POOL_HEAT   = (1 << 1),   // 0x0002 (2)
+    CMD_POOL_LIGHTS = (1 << 2),   // 0x0004 (4)
+    CMD_SPA         = (1 << 3),   // 0x0008 (8)
+    CMD_SPA_HEAT    = (1 << 4),   // 0x0010 (16)
+    CMD_SPA_LIGHT   = (1 << 5),   // 0x0020 (32)
+    CMD_JETS        = (1 << 6),   // 0x0040 (64)
+    CMD_PUMP_SPEED  = (1 << 7),   // 0x0080 (128)
+    CMD_ALL_OFF     = (1 << 8),   // 0x0100 (256)
+    CMD_PDA         = (1 << 9),   // 0x0200 (512)
+    CMD_INSEQ       = (1 << 10),   // 0x0400 (1024)
+    CMD_RESET       = (1 << 11),
+    CMD_STATUS_POLL = (1 << 12)
 };
+
+// C++ Bitwise Operator Overloads (Prevents mandatory static_cast)
+inline Command operator|(Command a, Command b) {
+    return static_cast<Command>(static_cast<uint16_t>(a) | static_cast<uint16_t>(b));
+}
+
+inline Command& operator|=(Command& a, Command b) {
+    a = a | b;
+    return a;
+}
+
+inline bool hasFlag(uint16_t mask, Command flag) {
+    return (mask & static_cast<uint16_t>(flag)) != 0;
+}
+
+class PDAEmulator {
+public:
+    void executeCommand(uint16_t mask, int extraVal = 0);
+};
+
 
 
 // Keep Alive Packet 

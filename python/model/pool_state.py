@@ -4,13 +4,15 @@
 from __future__ import annotations
 import re
 import time
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 from protocol.pda_messages import ParsedPacket
-from bridge.client import BridgeClient, Command, CommandType
+from bridge.client import BridgeClient, Command
 
 STALE_SECONDS = 60
+logger = logging.getLogger(__name__)
 
 class PoolMode(str, Enum):
     OFF = "Off"
@@ -87,7 +89,7 @@ class PoolState:
 
             # If updated then clear the state and get a full update.
             if(self.updated):
-                print("  Main screen update complete. PoolState updated.")
+                logger.debug("  Main screen update complete. PoolState updated.")
                 self.updated = False  # Reset the updated flag after snapshotting
                 self.pool_light_on = False
                 self.spa_light_on = False
@@ -133,13 +135,14 @@ class PoolState:
             self.line_text = text_chunk
             flags = 0
 
-            print(f"  Line # 0x{self.line_number:02X} ({self.updated}): '{self.line_text}'")
+            logger.warning(f"  Line # 0x{self.line_number:02X} ({self.updated}): '{self.line_text}'")
             self._parse_line()
 
             # Need a step to aggregate the main screen data such as pool and spa off at this point.
 
             if self.line_number == 130:
                 #reset counter because we recieved at least a temp update
+                logger.debug("rxed line 0x82")
                 self.off_ctr = 0
                 self.bridge.got_main(True)
                 self.updated = True
@@ -151,7 +154,7 @@ class PoolState:
             # If we get 3 time updates in a row, then we can assume the pool is off.
             if self.line_number == 64:
                 self.off_ctr += 1
-                print(f"  Time line counter: {self.off_ctr} ")
+                logger.info(f"  Time line counter: {self.off_ctr} ")
                 if( self.off_ctr > 2):
                     self.bridge.got_main(True)
                     self.mode = PoolMode.OFF
@@ -198,7 +201,7 @@ class PoolState:
             self.mode = PoolMode.POOL
             self.pool = True
             self.spa = False
-            #print("Parseline: Pool mode is on, filter pump enabled.")
+            logger.debug("Parseline: Pool mode is on, filter pump enabled.")
 
         # Check if main menu shows Spa mode on 
         if all(w in self.line_text for w in ["SPA MODE", "ON"]):
@@ -212,7 +215,6 @@ class PoolState:
             self.jet_pump_on = True
         
         # Check if main menu shows spa heater on 
-        #############TODO: SPA HEATER TURN OFF POOL HEATER WHEN it comes through
         if all(w in self.line_text for w in ["SPA HEATER", "ON"]):
             self.spa_heater_on = True
         elif all(w in self.line_text for w in ["SPA HEATER", "OFF"]):
@@ -245,11 +247,11 @@ class PoolState:
                 self.water_temp_f = int(water_match.group(1))
 
         if "POOL HEAT" in self.line_text and self.line_number == 0x00:
-            print("Pool Heat Menu")
+            logger.debug("Pool Heat Menu")
 
         # Grab the current temp setpoint in the heater menu
         if "SET TO" in self.line_text and self.line_number == 0x03:
-            print("Pool/SPA Heat Menu")
+            logger.debug("Pool/SPA Heat Menu")
 
             # re.search looks for one or more digits followed by 'F'
             # 'SET TO 91FF' matches '91' in group 1
@@ -258,7 +260,7 @@ class PoolState:
             if match:
                 temp_value = int(match.group(1))
                 self.target_temp_f = temp_value
-                print(f"Captured valid target setpoint update: {temp_value}°F")
+                logger.info(f"Captured valid target setpoint update: {temp_value}°F")
                 self.bridge.htr_setpoint(temp_value)
 
 
@@ -323,7 +325,7 @@ class PoolState:
     def cloud_read_dict(self) -> dict[str, Any]:
         """Subset exposed as Cloud read properties (AC-12)."""
         d = self.to_dict()
-        print(f"cloud_read_dict: {d}")
+        logger.debug(f"cloud_read_dict: {d}")
         return {
             "water_temp_f": d.get("water_temp_f"),
             "air_temp_f": d.get("air_temp_f"),
