@@ -93,9 +93,11 @@ class BridgeClient:
         logger.debug(f"client->control_command: {cmd.name} (0x{int(cmd):04X})")
 
         if Command.TEMP_ASK in cmd:
-            Bridge.notify("set_temp", temp_f or 0)
+            temp = temp_f or self.state.spa_setpoint_f or 90
+            Bridge.notify("set_temp", temp)
         elif Command.POOL_FILTER_RPM in cmd:
-            Bridge.notify("set_filter_rpm", rpm or 0)
+            speed = rpm or 2400
+            Bridge.notify("set_filter_rpm", speed)
         else:
             Bridge.notify("control_cmd", int(cmd))
 

@@ -8,6 +8,7 @@ bool ActionList::AddAction(uint8_t btnId, uint8_t pushes, uint8_t delay_cycles) 
         return false;
     }
     actions[count++] = { btnId, pushes, delay_cycles };
+    Logger.infof("  Action added -> btnId: %d, pushes: %d, delay: %d", btnId, pushes, delay_cycles);
     return true;
 }
 
@@ -44,8 +45,7 @@ ActionListManager::ActionListManager(Stream& mon) : monitor(mon) {
 }
 
 bool ActionListManager::cmdRxed(uint16_t cmdMask) {
-    monitor.print("ActionListManager::cmdRxed (Mask): 0x");
-    monitor.println(cmdMask, HEX);
+    Logger.debugf("ActionListManager::cmdRxed Mask: 0x%04X", cmdMask);
 
     if (cmdMask == CMD_UNKNOWN) return false;
 
@@ -56,15 +56,11 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
         // Check if this command's bit flag is set in the incoming mask
         if (cmdList[i].name != CMD_UNKNOWN && (cmdMask & cmdList[i].name)) {
             
-            monitor.println(' ');
-            monitor.print("Matched Command Bit: 0x");
-            monitor.print(cmdList[i].name, HEX);
-            monitor.print(" index: ");
-            monitor.println(i);
+           Logger.infof("Matched Command Bit: 0x%04X at index %d", cmdList[i].name, i);
             
             // Handle PDA status flag
             if (cmdList[i].name == CMD_PDA) {
-                monitor.println("CMD_PDA received.");
+                Logger.debug("CMD_PDA received.");
                 if (cmdMask == CMD_PDA) return false; // Return false if PDA was the sole flag
                 continue;
             }
@@ -81,17 +77,13 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
                 );
                 
                 uint8_t currentIdx = baseActionIdx + j;
-                monitor.print(list.actions[currentIdx].btnId);
-                monitor.print(',');
-                monitor.println(list.actions[currentIdx].num_pushes);
+                
             }
                 
             // Handle Pool Lights toggle
             if (cmdList[i].name == CMD_POOL_LIGHTS) {
                 uint8_t selectIdx = baseActionIdx + 3; // Index of select push for this command
-                monitor.print("PL: ");
-                monitor.println(poolLights);
-
+                
                 if (poolLights) {
                     list.actions[selectIdx].num_pushes = 1; // select only once if on->off
                     poolLights = false;
@@ -99,16 +91,15 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
                     list.actions[selectIdx].num_pushes = 2; // select twice if off->on
                     poolLights = true;
                 }
-                monitor.print(list.actions[selectIdx].btnId);
-                monitor.print(',');
-                monitor.println(list.actions[selectIdx].num_pushes);
+                Logger.infof("Pool Lights state -> %s (pushes: %d)", 
+                    poolLights ? "ON" : "OFF", 
+                    list.actions[selectIdx].num_pushes
+                );
             }   
 
             // Handle Spa Lights toggle
             if (cmdList[i].name == CMD_SPA_LIGHT) {
                 uint8_t selectIdx = baseActionIdx + 3; // Index of select push for this command
-                monitor.print("SL: ");
-                monitor.println(spaLights);
 
                 if (spaLights) {
                     list.actions[selectIdx].num_pushes = 1; // select only once if on->off
@@ -117,9 +108,10 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
                     list.actions[selectIdx].num_pushes = 2; // select twice if off->on
                     spaLights = true;
                 }
-                monitor.print(list.actions[selectIdx].btnId);
-                monitor.print(',');
-                monitor.println(list.actions[selectIdx].num_pushes);
+                Logger.infof("Spa Lights state -> %s (pushes: %d)", 
+                    spaLights ? "ON" : "OFF", 
+                    list.actions[selectIdx].num_pushes
+                );
             }
 
             // Handle Pool Heater toggle
@@ -131,12 +123,12 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
 
                 
             if (cmdList[i].name == CMD_PUMP_SPEED) {
+                Logger.infof("Pump Speed Action queued (Selection: %d)", pumpSpdSelect);
                 if (pumpSpdSelect > 0) {
-                    list.AddAction(5, pumpSpdSelect, 5); // press down
+                    list.AddAction(5, pumpSpdSelect, 15);
                 }
-                list.AddAction(4, 5, 5); // press select
+                list.AddAction(4, 5, 15);                
             }
-
             handledAny = true;
         }
     }
@@ -144,97 +136,6 @@ bool ActionListManager::cmdRxed(uint16_t cmdMask) {
     if (handledAny) {
         activeCmd = true;
         return true;
-    }
-
-    return false;
-}
-
-
-
-bool ActionListManager::cmdRxed(Command name){
-    monitor.print("ActionListManager::cmdRxed: ");
-    for(uint8_t i=0; i < sizeof(cmdList)/sizeof(cmdList[0]); i++){
-    
-        if(cmdList[i].name == name){
-            monitor.println(' ');
-            monitor.print("Name: ");
-            monitor.print(name);
-            monitor.print("index: ");
-            monitor.println(i);
-            
-            if (name == CMD_PDA){
-                monitor.println("CMD_PDA received.");
-                return false;
-            }
-
-            for(uint8_t j=0; j < cmdList[i].count; j++){
-                list.AddAction(cmdList[i].actions[j].btnId, cmdList[i].actions[j].num_pushes, cmdList[i].actions[j].delay_cycles);
-                monitor.print(list.actions[j].btnId);
-                monitor.print(',');
-                monitor.println(list.actions[j].num_pushes);
-            }
-                
-            if (name == CMD_POOL_LIGHTS){
-                monitor.print("PL: ");
-                monitor.println(poolLights);
-
-                if(poolLights){
-                    list.actions[3].num_pushes = 1; // select only once if on->off
-                    poolLights = false;
-                    monitor.print(list.actions[3].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[3].num_pushes);
-                }else{
-                    list.actions[3].num_pushes = 2; // select twice if off->on
-                    poolLights = true;
-                    monitor.print(list.actions[3].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[3].num_pushes);
-                }
-
-            }   
-            if (name == CMD_SPA_LIGHT){
-                monitor.print("PL: ");
-                monitor.println(spaLights);
-
-                if(spaLights){
-                    list.actions[3].num_pushes = 1; // select only once if on->off
-                    spaLights = false;
-                    monitor.print(list.actions[3].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[3].num_pushes);
-                }else{
-                    list.actions[3].num_pushes = 2; // select twice if off->on
-                    spaLights = true;
-                    monitor.print(list.actions[3].btnId);
-                    monitor.print(',');
-                    monitor.println(list.actions[3].num_pushes);
-                }
-            }
-
-            if (name == CMD_POOL_HEAT){
-                if(poolHeat)
-                    poolHeat = false;
-                else
-                    poolHeat = true;
-            }
-
-            if (name == CMD_SPA_HEAT){
-                if(spaHeat)
-                    spaHeat = false;
-                else
-                    spaHeat = true;
-            }
-
-            if (name == CMD_PUMP_SPEED){
-                if(pumpSpdSelect>0)
-                    list.AddAction(5, pumpSpdSelect, 5); //press down
-                list.AddAction(4, 5, 5); // press select
-            }
-
-            activeCmd = true;
-            return true;
-        }
     }
     return false;
 }
@@ -254,20 +155,20 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
             delay_cycles = 5;
             cmd_seq_delay = false;
         }
-        //monitor.println("tick");
         return true;
     }
 
     if(currActionIndex >= list.count){
         if(line != 4){ // If not on the main menu, send a BACK command to return to the main menu
             rs485WriteRaw(serial1, PKT_PDA_BACK, 9);
+            Logger.debug("Not home yet");
             return true;
         }
 
         activeCmd = false;
         currActionIndex = 0;
         list.ResetAction();        
-        monitor.println("::::::CMD DONE::::::");
+        Logger.info("::::::CMD DONE::::::");
         return false;
     }
 
@@ -276,29 +177,21 @@ bool ActionListManager::pushNextButton(Stream& serial1, uint8_t line){
     switch(action.btnId){
         case 4: // SELECT
             rs485WriteRaw(serial1, PKT_PDA_SELECT, 9);
-            //monitor.print("SELECT ");
             break;
         case 5: // DOWN
             rs485WriteRaw(serial1, PKT_PDA_DOWN, 9);
-            //monitor.print("DOWN ");
             break;
         case 2: // BACK
             rs485WriteRaw(serial1, PKT_PDA_BACK, 9);
-            //monitor.print("BACK ");
             break;
         case 6: // UP
             rs485WriteRaw(serial1, PKT_PDA_UP, 9);
-            //monitor.print("UP ");
             break;
     }
 
     cmd_seq_delay = true;
     delay_cycles = action.delay_cycles;
-    //monitor.print(currActionIndex);
-    //monitor.print(',');
-    //monitor.print(action.btnId);
-    //monitor.print(',');
-    //monitor.println(action.num_pushes);
+    Logger.debugf("Action [%d] -> btnId: %d, pushes: %d", currActionIndex, action.btnId, action.num_pushes);
 
     pushed++;
     if(pushed >= action.num_pushes){
@@ -316,6 +209,7 @@ void ActionListManager::tempBtnDir(int btn){
     currActionIndex = 0;
 }
 
-void ActionListManager::pumpSpdLine(int line){
+void ActionListManager::pumpSpdLine(uint8_t line){
     pumpSpdSelect = line - 1;
+    Logger.debugf("Pump Speed Action queued (Selection: %d)", pumpSpdSelect);
 }

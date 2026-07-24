@@ -43,12 +43,11 @@ uint8_t pkt_rsp[] = {
 void set_led_state(bool s) {
     // LOW state means LED is ON
     digitalWrite(LED_BUILTIN, s ? LOW : HIGH);
-    Monitor.println("LED");
+    Logger.debug("LED");
 }
 
 void set_main(bool s) {
-    //Monitor.print("Main Menu: ");
-    //Monitor.println(s);
+    Logger.debug("Main Menu");
     mainMenu = s;
 }
 
@@ -68,13 +67,11 @@ void set_htr_setpoint(int setpoint){
 void set_temp(int temp) {
 
     water_temp_target = temp;
-    Monitor.print("Temp ask: ");
-    Monitor.println(water_temp_target);
+    Logger.infof("Set temperature to: %d", water_temp_target);
 }
 
 void set_filter_rpm(int rpm) {
-    Monitor.print("Pump RPM: ");
-    Monitor.println(rpm);
+    Logger.infof("Set filter pump RPM: %d", rpm);
     // Function by picking a preset from the VSP adjust menu 
     // line 1 - POOL 1800
     // line 2 - SPA    2750
@@ -93,21 +90,19 @@ void set_filter_rpm(int rpm) {
 }
 
 void set_spa_state(bool s) {  
-    //Monitor.print("Spa: ");
-    //Monitor.println(s);
+
      // If command is recieved while porcessing then ignore input
     if((control_command == CMD_UNKNOWN)||(control_command == CMD_ALL_OFF) && s){
         control_command = CMD_SPA;
-    }else{Monitor.println("Control Input ignored. Still processing last input");}
+    }else{Logger.warning("Control Input ignored. Still processing last input");}
 }
 
 void set_pool_state(bool s) {
-    //Monitor.print("Pool: ");
-    //Monitor.println(s);
+
     // If command is recieved while porcessing then ignore input
     if((control_command == CMD_UNKNOWN)||(control_command == CMD_ALL_OFF) && s){
         control_command = CMD_POOL;
-    }else{Monitor.println("Control Input ignored. Still processing last input");}
+    }else{Logger.warning("Control Input ignored. Still processing last input");}
 }
 
 /**
@@ -120,13 +115,12 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
     }
     
     if(control_command & CMD_PDA) { 
-        printPacketBuffer(Monitor, raw_bytes, length);
+        printPacketBuffer(raw_bytes, length);
         return;
     
     }else{
 
         // PDA destination Rx'ed
-        //pkt_rsp[3] = 0x01; // response ACK
         if (raw_bytes[0] == 0x60) {
             if(raw_bytes[1] == 0x08)
                 highlighted_line = raw_bytes[2];
@@ -145,7 +139,6 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
             //Reply with simple keep alive for the first few packet acks
             if(pdaConnecting){
                 rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                //printPacketRsp(Monitor, PKT_PDA_KA, 9);
                 cmd_seq++;
                 if(cmd_seq >= 3){
                     pdaConnecting = false;
@@ -169,8 +162,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 case 0x00: // Initial Connect
                     pdaConnecting = true;
                     rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                    //printPacketRsp(Monitor, PKT_PDA_KA, 9);
-                    Monitor.println("-----CONNECTING-----");
+                    Logger.info("-----CONNECTING-----");
                     break;
                 case 0x02: // Keep Alive
                     rs485WriteRaw(Serial1, pkt_rsp, 9);
@@ -181,8 +173,7 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                     break;
                 case 0x08: // Highlight line
                     rs485WriteRaw(Serial1, pkt_rsp, 9);
-                    //Monitor.print("Line selected: ");
-                    //Monitor.println(highlighted_line, HEX);
+                    Logger.debugf("Highlighted Line: %d", highlighted_line);
                     break;
                 case 0x09: //Clear Screen
                     rs485WriteRaw(Serial1, pkt_rsp, 9);
@@ -209,22 +200,19 @@ void handle_packet(const uint8_t* raw_bytes, uint8_t length) {
                 {
                     pdaConnecting = true;
                     rs485WriteRaw(Serial1, PKT_PDA_KA, sizeof(PKT_PDA_KA));
-                    //printPacketRsp(Monitor, PKT_PDA_KA, 9);
-                    //Monitor.println("-----default-----");
                     break;
                 }
             }
             //Only print the long msgs
             if(raw_bytes[1] == 0x04){            
-                printPacketBuffer(Monitor, raw_bytes, length);
-                printPacketRsp(Monitor, pkt_rsp, 9);
+                printPacketBuffer(raw_bytes, length);
+                printPacketRsp(pkt_rsp, 9);
             }
 
             //Send packet to MPU
             mainMenu = false;
             bytesToHex(packetBuffer, pIdx, hexBuffer);
             Bridge.notify("pda_packet", hexBuffer);  
-            //delay(10);
         }
     }
 }
@@ -241,30 +229,27 @@ void processByte(uint8_t c) {
                 state = 2;
             } else {
                 state = 0;
-                Monitor.print("--Failed STX--: ");
-                Monitor.print("ESC: ");
-                Monitor.println(c, HEX);
-                printPacketBuffer(Monitor, packetBuffer, pIdx);
+                Logger.errorf("--Failed STX--> ESC char: 0x%02X", c);
+                printPacketBuffer( packetBuffer, pIdx);
             }
             break;
         case 2: // Reading packet data, looking for ETX or escape
             if (c == 0x10) state = 3;
             else if (pIdx < MAX_PKT) packetBuffer[pIdx++] = c;
-            else Monitor.println("---------MAX PACKET SIZE---------- ");
+            else Logger.error("---------MAX PACKET SIZE---------- ");
             break;
         case 3: // After escape character, determine if it's an escaped byte or end of packet
             if (c == 0x03) {
                 if (validateChecksum(packetBuffer, pIdx)) packetReady = true; 
                 else {
-                    Monitor.println(" ");
-                    Monitor.println("----Failed checksum----- ");
-                    printPacketBuffer(Monitor, packetBuffer, pIdx);
+                    Logger.error("----Failed checksum----- ");
+                    printPacketBuffer( packetBuffer, pIdx);
                 }
                 state = 0;
             } else { // not really doing escapes Escaped 0x10 byte, add it to the buffer
                 if (pIdx < MAX_PKT) packetBuffer[pIdx++] = 0x10;
                 else {
-                    Monitor.println("---------MAX PACKET SIZE---------- ");
+                    Logger.error("---------MAX PACKET SIZE---------- ");
                 }
                 state = 2;
             }
@@ -305,14 +290,12 @@ void rs485SendHex(const char* hex) {
 
 void rs485_tx(String hex) {
     rs485SendHex(hex.c_str());
-    Monitor.print("RS485 TX ");
-    Monitor.println(hex);
+    Logger.debugf("RS485 TX %s", hex.c_str());
 }
 
 
 void control_input(int cmdMask) {
-    Monitor.print("Control Input Mask: 0x");
-    Monitor.println(cmdMask, HEX);
+    Logger.infof("Control Input Mask: 0x%04X", cmdMask);
 
     // If command is received while processing then ignore input
     if (control_command == CMD_UNKNOWN) {
@@ -320,29 +303,30 @@ void control_input(int cmdMask) {
         // --- OPTION 1 REFACTOR ---
         // Direct assignment! No string matching required.
         control_command = static_cast<Command>(cmdMask);
-
         manager.cmdRxed(control_command);
 
         // Bitwise test for CMD_PDA flag
         if (!(control_command & CMD_PDA)) {
+            Logger.info("PDA Mode Exit");
             control_command = CMD_UNKNOWN;
         } else if (!pdaSynced) {
             pdaSynced = false; // need to set this to true to enable fast dump
         }
 
     } else if (control_command & CMD_PDA) {
-
+        Logger.info("PDA Mode Enter");
         if (bidx > 0) {
             st = 0;
             uint8_t c;
-            Monitor.print("Buffer Data: ");
+            
+            // Format buffer hex string for clean logging
+            String bufHex = "";
             for (int i = 0; i < bidx; i++) {
                 c = pbuff[i];
 
-                // Print a leading zero if the byte is less than 16 (0x10)
-                if (pbuff[i] < 16) 
-                    Monitor.print("0");
-                Monitor.print(pbuff[i], HEX);
+                char hexByte[3];
+                snprintf(hexByte, sizeof(hexByte), "%02X", c);
+                bufHex += hexByte;
 
                 switch (st) {
                     case 0: // Idle state, waiting for STX
@@ -356,14 +340,13 @@ void control_input(int cmdMask) {
                         if (c == 0x10) st = 3;
                         break;
                     case 3: // After escape character, determine if end of packet
-                        if (c == 0x03) {
-                            Monitor.println(" ");
-                            st = 0;
-                        } else st = 2;
+                        if (c == 0x03) st = 0;
+                        else st = 2;
                         break;
                 }
             }
-            Monitor.println();
+
+            Logger.debug("Buffer Data: " + bufHex);
             pdaSynced = false;
             bidx = 0;
         }
@@ -450,6 +433,12 @@ void control_input_OLD(String cmdStr){
 void setup() {
     Monitor.begin();
     Serial1.begin(9600);
+    // Initialize Logger with your Monitor port and set minimum level 
+    Logger.begin(Monitor, LOG_INFO);
+
+    Logger.info("MCU system initializing...");
+    Logger.debug("Monitor port bound successfully.");
+
     pinMode(DE, OUTPUT);
     pinMode(RE, OUTPUT);
     rs485SetTransmit(false);
@@ -467,7 +456,7 @@ void setup() {
     Bridge.provide("control_cmd", control_input);
     
     delay(3000);
-    Monitor.println("PoolController RS485 ready");
+    Logger.info("PoolController RS485 ready");
 }
 
 void loop() {
@@ -493,18 +482,14 @@ void loop() {
         }  
         
         if((watchdog + 400) < millis() ){
-            Monitor.println("*******BITE*******");
-             
-            Monitor.print("[");
-            Monitor.print(millis());
-            Monitor.print("] buffer: ");
-            printPacketBuffer(Monitor, packetBuffer, pIdx);
+            Logger.error("*******BITE*******");
+            printPacketBuffer(packetBuffer, pIdx);
 
             pkt_rsp[4] = 0x54; //sync'ed/no keypress
             pkt_rsp[5] = 0x00; // no key 
             pkt_rsp[6] = 0x12 + 0x01 + pkt_rsp[4]; // Checksum includes the command and token, plus the fixed 0x12
             rs485WriteRaw(Serial1, pkt_rsp, 9); 
-            printPacketBuffer(Monitor, pkt_rsp, 9);
+            printPacketBuffer(pkt_rsp, 9);
             watchdog =  millis();
         }
     }

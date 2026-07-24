@@ -106,20 +106,20 @@ const ListDefinition cmdList[] = {
     {
         CMD_PUMP_SPEED,
         {
-            {5, 5, 4}, // Press DOWN five times
+            {5, 5, 8}, // Press DOWN five times
             {4, 1, 15}, // Press SELECT once
-            {5, 2, 4}, // Press DOWN 2 times
-            {4, 1, 5}, // Press SELECT 1 t0 enter VSP ADJ
+            {5, 2, 8}, // Press DOWN 2 times
+            {4, 1, 15}, // Press SELECT 1 t0 enter VSP ADJ
         },
         4
     },
     {
         CMD_ALL_OFF,
         {
-            {5, 5, 4}, // Press DOWN five times
+            {5, 5, 10}, // Press DOWN five times
             {4, 1, 15}, // Press SELECT once
-            {5, 8, 4}, // Press DOWN eight times
-            {4, 2, 5}, // Press SELECT twice times
+            {5, 9, 10}, // Press DOWN eight times
+            {4, 2, 15}, // Press SELECT twice times
             {2, 2, 10}  // Press BACK/MENU once to clear screen
         },
         5
@@ -145,11 +145,10 @@ private:
 
 public:
     ActionListManager(Stream& monitor);
-    bool cmdRxed(Command name);
     bool cmdRxed(uint16_t cmdMask);
     bool pushNextButton(Stream& serial1, uint8_t line);
     void tempBtnDir(int btn);
-    void pumpSpdLine(int line);
+    void pumpSpdLine(uint8_t line);
 
     // Helper to check if a macro sequence is actively running
     bool isBusy() const { 

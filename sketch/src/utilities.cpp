@@ -1,4 +1,5 @@
 #include "utilities.h"
+#include <stdarg.h>
 
 static int hexNibble(char c) {
     if (c >= '0' && c <= '9') return c - '0';
@@ -90,91 +91,34 @@ void rs485WriteRaw(Stream& serial1, const uint8_t* data, int len) {
     serial1.flush();
     delay(1);
     rs485SetTransmit(false);
-    //Monitor.print("T: ");
-    //Monitor.println(millis());
 }
 
-void printPacketBuffer(Stream& monitor, const uint8_t* buf, size_t len) {
+void printPacketBuffer(const uint8_t* buf, size_t len) {
+    if (buf == NULL || len == 0) return;
 
-  unsigned long currentMillis = millis();
- 
-  monitor.print("[");
-  monitor.print(currentMillis);
-  monitor.print("] RX: ");
-
-  for (size_t i = 0; i < len; i++) {
-
-    // Print a leading zero if the byte is less than 16 (0x10)
-    if (buf[i] < 16) {
-      monitor.print("0");
+    String hexStr = "";
+    for (size_t i = 0; i < len; i++) {
+        char hexByte[3];
+        snprintf(hexByte, sizeof(hexByte), "%02X", buf[i]);
+        hexStr += hexByte;
     }
-    
-    monitor.print(buf[i], HEX);
-    
-  }
-  monitor.println(); // Final newline
+
+    Logger.debug("RX: " + hexStr);
 }
 
-void printPacketRsp(Stream& monitor, const uint8_t* buf, size_t len) {
+void printPacketRsp(const uint8_t* buf, size_t len) {
+    if (buf == NULL || len < 4) return;
 
-  unsigned long currentMillis = millis();
- 
-  monitor.print("[");
-  monitor.print(currentMillis);
-  monitor.print("] RX: ");
-
-  for (size_t i = 2; i < (len-2); i++) {
-    if (buf[i] < 16)
-      monitor.print("0");
-    monitor.print(buf[i], HEX);
-  }
-  monitor.println(); // Final newline
-}
-
-
-void parseJandyDisplayPacket(Stream& monitor, const unsigned char *packet, size_t packetLen) {
-    if (packetLen < 4) return;
-    if (packet[0] != 0x60) return;
-
-    unsigned char headerLen = packet[1] - 1;
-    
-    if (packetLen < (size_t)(headerLen + 2)) return;
-
-    unsigned char lineId = packet[2];
-    size_t payloadStart = headerLen;
-    size_t payloadEnd = packetLen - 1; // Drop the checksum byte
-    
-    if (payloadStart >= payloadEnd) return;
- 
-    size_t textLen = payloadEnd - payloadStart;
-    char asciiString[36]; 
-    size_t strIdx = 0;
-
-    for (size_t i = payloadStart; i < payloadEnd && strIdx < (sizeof(asciiString) - 3); i++) {
-        unsigned char c = packet[i];
-
-        if (c == 0x60) {
-            // Handle Jandy's custom degree token mapping inside standard Serial Monitor
-            // Converts 0x60 into the UTF-8 multi-byte degree symbol sequence (°)
-            asciiString[strIdx++] = (char)0xC2; 
-            asciiString[strIdx++] = (char)0xB0; 
-        } else if (c >= 32 && c <= 126) {
-            // Standard printable ASCII range check
-            asciiString[strIdx++] = (char)c;
-        } else {
-            // Replace dropped non-printable wire noise with a space
-            asciiString[strIdx++] = ' ';
-        }
+    // Build the formatted hex string for bytes between header (2) and checksum (len-2)
+    String hexStr = "";
+    for (size_t i = 2; i < (len - 2); i++) {
+        char hexByte[3];
+        snprintf(hexByte, sizeof(hexByte), "%02X", buf[i]);
+        hexStr += hexByte;
     }
-    asciiString[strIdx] = '\0'; // Ensure string is null-terminated
 
-    if (lineId == 0x28) return;
-    if (lineId == 0x00) return;
-    if (lineId < 16) monitor.print(F("0")); // Leading zero padding for hex formatting
-    monitor.print(lineId, HEX);
-    monitor.print(F(" | "));
-    monitor.print(asciiString);
-    monitor.println();
+    // Pass formatted string to Logger (Logger automatically prepends [millis] and level tag)
+    Logger.debug("RX: " + hexStr);
 }
 
 
@@ -221,4 +165,78 @@ void PDAEmulator::executeCommand(uint16_t mask, int extraVal) {
     if (mask & CMD_SPA_LIGHT) {
         // Toggle Spa Lights
     }
+}
+
+// Define global instance
+LoggerClass Logger;
+
+LoggerClass::LoggerClass() : _port(NULL), _minLevel(LOG_INFO) {}
+
+void LoggerClass::begin(Stream& monitorPort, LogLevel minLevel) {
+    _port = &monitorPort;
+    _minLevel = minLevel;
+}
+
+void LoggerClass::setLevel(LogLevel level) {
+    _minLevel = level;
+}
+
+void LoggerClass::_log(LogLevel level, const char* prefix, const String& msg) {
+    if (_port == NULL || level < _minLevel) return;
+
+    // Optional: Print millisecond timestamp [ms]
+    _port->print("[");
+    _port->print(millis());
+    _port->print("] ");
+
+    // Print Level Tag and message
+    _port->print(prefix);
+    _port->println(msg);
+}
+
+// Basic String Methods
+void LoggerClass::debug(const String& msg)   { _log(LOG_DEBUG, "DEBUG: ", msg); }
+void LoggerClass::info(const String& msg)    { _log(LOG_INFO,  "INFO: ",  msg); }
+void LoggerClass::warning(const String& msg) { _log(LOG_WARN,  "WARNING: ", msg); }
+void LoggerClass::error(const String& msg)   { _log(LOG_ERROR, "ERROR: ", msg); }
+
+// Formatted (printf-style) Helper Methods
+void LoggerClass::debugf(const char* fmt, ...) {
+    if (_port == NULL || LOG_DEBUG < _minLevel) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    debug(String(buf));
+}
+
+void LoggerClass::infof(const char* fmt, ...) {
+    if (_port == NULL || LOG_INFO < _minLevel) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    info(String(buf));
+}
+
+void LoggerClass::warnf(const char* fmt, ...) {
+    if (_port == NULL || LOG_WARN < _minLevel) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    warning(String(buf));
+}
+
+void LoggerClass::errorf(const char* fmt, ...) {
+    if (_port == NULL || LOG_ERROR < _minLevel) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    error(String(buf));
 }

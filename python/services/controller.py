@@ -58,12 +58,11 @@ class PoolController:
         self._queue.put(None)
 
     def enqueue(self, cmd: Command, rpm: Optional[int] = None, temp_f: Optional[int] = None) -> None:
-    #def enqueue(self, cmd: Command) -> None:
-        self._queue.put(cmd)
+        self._queue.put((cmd, rpm, temp_f))
 
     def pool_filter(self) -> None:
         logger.info("PoolController: pool_filter called")
-        self.enqueue(Command.POOL_FILTER)
+        self.enqueue(Command.POOL)
 
     def pool_filter_rpm(self, rpm: int | None = None) -> None:
         logger.info("PoolController: pool_filter called")
@@ -126,9 +125,11 @@ class PoolController:
             if self.state and self.state.undefined_state and Command.RESET not in cmd:
                 self.enqueue(Command.RESET)
 
-    def _execute(self, cmd: Command) -> None:
-        logger.info(f"controller: _execute (command type:) {cmd.name} (0x{int(cmd):04X})")
-        self.bridge.control_command(cmd)
+    def _execute(self, item: tuple) -> None:
+        cmd, rpm, temp_f = item
+    
+        logger.info(f"controller: _execute (command:) {cmd.name} (0x{int(cmd):04X})")
+        self.bridge.control_command(cmd, rpm=rpm, temp_f=temp_f)
 
 
 

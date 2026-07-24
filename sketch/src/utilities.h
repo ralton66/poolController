@@ -29,6 +29,48 @@ enum Command : uint16_t {
     CMD_STATUS_POLL = (1 << 12)
 };
 
+
+// Python-compatible Log Levels
+enum LogLevel {
+    LOG_DEBUG = 10,
+    LOG_INFO  = 20,
+    LOG_WARN  = 30,
+    LOG_ERROR = 40,
+    LOG_NONE  = 100
+};
+
+class LoggerClass {
+private:
+    Stream* _port;             // Pointer to Monitor Stream (e.g. Serial, Console, etc.)
+    LogLevel _minLevel;        // Filter out logs below this level
+
+    void _log(LogLevel level, const char* prefix, const String& msg);
+
+public:
+    LoggerClass();
+
+    // Initialize with your Monitor port and an optional starting level (default: INFO)
+    void begin(Stream& monitorPort, LogLevel minLevel = LOG_INFO);
+    
+    // Set active log level dynamically at runtime
+    void setLevel(LogLevel level);
+
+    // Python-styled Logging Methods
+    void debug(const String& msg);
+    void info(const String& msg);
+    void warning(const String& msg);
+    void error(const String& msg);
+
+    // Formatted printf-style helper overloads
+    void debugf(const char* fmt, ...);
+    void infof(const char* fmt, ...);
+    void warnf(const char* fmt, ...);
+    void errorf(const char* fmt, ...);
+};
+
+// Global Logger instance declaration
+extern LoggerClass Logger;
+
 // C++ Bitwise Operator Overloads (Prevents mandatory static_cast)
 inline Command operator|(Command a, Command b) {
     return static_cast<Command>(static_cast<uint16_t>(a) | static_cast<uint16_t>(b));
@@ -106,7 +148,7 @@ void rs485WriteRaw(Stream& serial1, const uint8_t* data, int len);
 /**
  * Prints a raw byte buffer as formatted hex values to a specified serial interface.
  */
-void printPacketRsp(Stream& monitor, const uint8_t* buf, size_t len);
+void printPacketRsp(const uint8_t* buf, size_t len);
 
 /**
  * Prints an incoming raw byte buffer with an absolute millisecond timestamp prefix.
@@ -115,6 +157,6 @@ void printPacketRsp(Stream& monitor, const uint8_t* buf, size_t len);
  * @param buf Pointer to the raw array of bytes
  * @param len The number of bytes to read and print
  */
-void printPacketBuffer(Stream& monitor, const uint8_t* buf, size_t len);
+void printPacketBuffer( const uint8_t* buf, size_t len);
 
 #endif // UTILITIES_H
